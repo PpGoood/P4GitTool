@@ -699,3 +699,23 @@ export async function discardLine(
     return true;
   });
 }
+
+// -------------------------------------------------------
+// Diff 查询
+// -------------------------------------------------------
+
+/**
+ * 获取指定文件相对 mirror/p4 的结构化 diff。
+ * 包含已提交和未提交的所有改动。
+ */
+export async function getFileDiff(
+  rootDir: string, stream: string, filepath: string
+): Promise<DiffFile | null> {
+  const repo = repoPath(rootDir, stream);
+  const { stdout } = await run(
+    'git', ['diff', 'mirror/p4', '--', filepath], repo, true
+  );
+  if (!stdout.trim()) return null;
+  const files = parseUnifiedDiff(stdout);
+  return files[0] ?? null;
+}
