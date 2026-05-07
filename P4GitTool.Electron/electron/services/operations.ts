@@ -5,6 +5,8 @@ import { loadConfig, repoPath, p4Root, getStream } from './config';
 import * as git from './git';
 import * as p4 from './p4';
 import { run } from './runner';
+import { parseUnifiedDiff, buildHunkReversePatch, buildLineReversePatch, DiffFile } from './diff';
+import { getQueue } from './queue';
 
 export type LogFn = (line: string) => void;
 
@@ -431,4 +433,222 @@ async function ensureJunction(repo: string, linkRel: string, target: string, log
   if (fs.existsSync(linkPath)) { log(`[OK] Junction 已存在: ${linkRel}`); return; }
   await run('cmd', ['/c', `mklink /J "${linkPath}" "${target}"`], undefined, true);
   log(`[OK] Junction 已创建: ${linkRel}`);
+}
+
+// -------------------------------------------------------
+// 快照操作
+// -------------------------------------------------------
+
+/**
+ * 用户手动触发的快照：git add -A + git commit -m "<message>"
+ */
+export async function commitSnapshot(
+  rootDir: string, stream: string, message: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    if (await git.hasMergeConflict(repo)) {
+      log('[ERROR] 工作区存在合并冲突，请先解决'); return false;
+    }
+
+    await run('git', ['add', '-A'], repo, true);
+    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
+    if (!st.trim()) {
+      log('[INFO] 无改动可快照'); return false;
+    }
+
+    if (!await git.gitCommit(repo, message)) {
+      log('[ERROR] git commit 失败'); return false;
+    }
+    log(`[OK] 快照已创建：${message}`);
+    return true;
+  });
+}
+
+export type SnapshotKind = 'sync' | 'sync-protect' | 'manual' | 'submit' | 'other';
+
+export interface SnapshotEntry {
+  hash: string;
+  parentHash: string;
+  date: string;    // ISO
+  message: string;
+  kind: SnapshotKind;
+  fileCount: number;
+}
+
+function detectKind(msg: string): SnapshotKind {
+  if (/^update: 同步 ?P4/i.test(msg) || /^sync:/i.test(msg)) return 'sync';
+  if (/^sync 前自动保护/.test(msg) || /^sync-protect:/i.test(msg)) return 'sync-protect';
+  if (/^submit:/i.test(msg)) return 'submit';
+  if (/^build:/i.test(msg)) return 'other';
+  return 'manual';
+}
+
+/**
+ * 列出当前分支的快照（含节点类型）。最新的在数组末尾。
+ */
+export async function listSnapshots(
+  rootDir: string, stream: string, limit = 100
+): Promise<SnapshotEntry[]> {
+  const repo = repoPath(rootDir, stream);
+  const { stdout } = await run(
+    'git',
+    ['log', `--max-count=${limit}`, '--format=%H|%P|%cI|%s', 'HEAD'],
+    repo,
+    true
+  );
+  const entries: SnapshotEntry[] = [];
+  for (const line of stdout.split('\n').filter(Boolean)) {
+    const [hash, parents, date, ...msgParts] = line.split('|');
+    const message = msgParts.join('|');
+    const parent = (parents ?? '').split(' ')[0] ?? '';
+
+    let fileCount = 0;
+    if (parent) {
+      const { stdout: namesOut } = await run(
+        'git', ['diff', '--name-only', parent, hash], repo, true
+      );
+      fileCount = namesOut.split('\n').filter(Boolean).length;
+    }
+
+    entries.push({
+      hash, parentHash: parent, date, message,
+      kind: detectKind(message), fileCount,
+    });
+  }
+  return entries.reverse();
+}
+
+/**
+ * 回滚到指定 commit（文件级别：git checkout <hash> -- .）
+ * 前置条件：工作区必须干净（无未提交改动）。由调用方校验。
+ */
+export async function rollbackTo(
+  rootDir: string, stream: string, hash: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    if (!await git.gitCheckClean(repo)) {
+      log('[ERROR] 工作区有未提交的改动，回滚前请先提交快照或丢弃改动');
+      return false;
+    }
+
+    const { code } = await run('git', ['checkout', hash, '--', '.'], repo, true);
+    if (code !== 0) {
+      log('[ERROR] git checkout 失败'); return false;
+    }
+
+    await p4.p4SyncKeep(cfg, stream);
+
+    await run('git', ['add', '-A'], repo, true);
+    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
+    if (st.trim()) {
+      if (!await git.gitCommit(repo, `revert: 回滚到 ${hash.slice(0, 7)}`)) {
+        log('[ERROR] 回滚后 commit 失败'); return false;
+      }
+    }
+
+    log(`[OK] 已回滚到 ${hash.slice(0, 7)}`);
+    return true;
+  });
+}
+
+// -------------------------------------------------------
+// Discard 操作
+// -------------------------------------------------------
+
+/**
+ * 还原单个文件到 mirror/p4 的版本。
+ */
+export async function discardFile(
+  rootDir: string, stream: string, filepath: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    if (!await git.gitCheckoutFile(repo, 'mirror/p4', filepath)) {
+      log(`[ERROR] 还原 ${filepath} 失败`); return false;
+    }
+    await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] ${filepath} 已还原到 P4 版本`);
+    return true;
+  });
+}
+
+async function findFileHunk(
+  repo: string, filepath: string, hunkIndex: number
+): Promise<{ file: DiffFile; hunkIndex: number } | null> {
+  const { stdout } = await run('git', ['diff', 'mirror/p4', '--', filepath], repo, true);
+  const files = parseUnifiedDiff(stdout);
+  if (!files.length || hunkIndex < 0 || hunkIndex >= files[0].hunks.length) return null;
+  return { file: files[0], hunkIndex };
+}
+
+/**
+ * 撤销某文件的某个 hunk。
+ */
+export async function discardHunk(
+  rootDir: string, stream: string, filepath: string, hunkIndex: number, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    const info = await findFileHunk(repo, filepath, hunkIndex);
+    if (!info) { log('[ERROR] 未找到指定 hunk'); return false; }
+
+    const patch = buildHunkReversePatch(info.file, info.file.hunks[hunkIndex]);
+    if (!await git.applyReversePatch(repo, patch)) {
+      log('[ERROR] git apply --reverse 失败'); return false;
+    }
+    await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] ${filepath} 的 hunk #${hunkIndex} 已撤销`);
+    return true;
+  });
+}
+
+/**
+ * 撤销某 hunk 中的单行改动。
+ */
+export async function discardLine(
+  rootDir: string, stream: string, filepath: string,
+  hunkIndex: number, lineIndex: number, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    const info = await findFileHunk(repo, filepath, hunkIndex);
+    if (!info) { log('[ERROR] 未找到指定 hunk'); return false; }
+
+    const patch = buildLineReversePatch(info.file, info.file.hunks[hunkIndex], lineIndex);
+    if (!await git.applyReversePatch(repo, patch)) {
+      log('[ERROR] git apply --reverse 失败'); return false;
+    }
+    await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] ${filepath} 的行改动已撤销`);
+    return true;
+  });
 }
