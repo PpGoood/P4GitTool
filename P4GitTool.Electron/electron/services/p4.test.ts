@@ -6,7 +6,7 @@ vi.mock('./runner', () => ({
 }));
 
 import * as runner from './runner';
-import { p4CreateChangelist } from './p4';
+import { p4CreateChangelist, p4SyncKeep } from './p4';
 import type { P4GitConfig } from './config';
 
 const cfg: P4GitConfig = {
@@ -56,5 +56,33 @@ describe('p4CreateChangelist', () => {
     });
     const cl = await p4CreateChangelist(cfg, 'dev', 'desc', []);
     expect(cl).toBe(-1);
+  });
+});
+
+describe('p4SyncKeep', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('使用 -k flag 对所有配置路径调用 p4 sync', async () => {
+    (runner.run as any).mockResolvedValue({ code: 0, stdout: '', stderr: '' });
+
+    const ok = await p4SyncKeep(cfg, 'dev');
+    expect(ok).toBe(true);
+
+    const call = (runner.run as any).mock.calls[0];
+    const [cmd, args] = call;
+    expect(cmd).toBe('p4');
+    expect(args).toContain('sync');
+    expect(args).toContain('-k');
+  });
+
+  it('stream 未配置返回 false', async () => {
+    const ok = await p4SyncKeep(cfg, 'nope');
+    expect(ok).toBe(false);
+  });
+
+  it('p4 失败返回 false', async () => {
+    (runner.run as any).mockResolvedValue({ code: 1, stdout: '', stderr: 'fail' });
+    const ok = await p4SyncKeep(cfg, 'dev');
+    expect(ok).toBe(false);
   });
 });

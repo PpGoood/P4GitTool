@@ -158,3 +158,24 @@ export async function p4OpenP4V(
   if (!sc) return;
   await run('p4v', ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-cmd', `change ${changelist}`]);
 }
+
+/**
+ * p4 sync -k：只更新 have 记录，不下载文件。
+ * 用于在 git checkout / merge / apply 等改变工作区文件内容之后，对齐 P4 的 have 表，
+ * 避免 p4 reconcile 时产生大量假改动。
+ */
+export async function p4SyncKeep(
+  cfg: P4GitConfig,
+  stream: string
+): Promise<boolean> {
+  const sc = getStream(cfg, stream);
+  if (!sc) return false;
+  const cwd = sc.root + '/ProjectX';
+  const { code } = await run(
+    'p4',
+    [...p4Args(cfg), '-c', sc.client, 'sync', '-k', '...'],
+    cwd,
+    true
+  );
+  return code === 0;
+}
