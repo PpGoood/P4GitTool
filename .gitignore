@@ -1,0 +1,44 @@
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-error.log
+yarn-debug.log
+.pnpm-debug.log
+
+# Build artifacts
+dist/
+dist-electron/
+release/
+out/
+*.tsbuildinfo
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Env
+.env
+.env.local
+
+# Reference repos (not our code)
+reference/
+
+# Archived legacy projects
+archive/
+
+# Superpowers workspace (brainstorm artifacts, not source)
+.superpowers/
+
+# Claude cache
+.claude/settings.local.json
+.claude/worktrees/
+
+# Electron build cache
+P4GitTool.Electron/.vite/
