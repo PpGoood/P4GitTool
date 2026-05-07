@@ -127,12 +127,26 @@ export async function p4CreateChangelist(
   if (!sc) return -1;
   const cwd = sc.root + '/ProjectX';
 
+  // 描述中的换行需要加 tab 缩进，这是 p4 spec 格式要求
+  const descLines = description.split('\n').map(l => '\t' + l).join('\n');
   const fileLines = files.map(f => `\t${f}`).join('\n');
-  const spec = `Change: new\nClient: ${sc.client}\nUser: ${cfg.p4_user}\nDescription:\n\t${description}\nFiles:\n${fileLines}\n`;
+  const spec =
+    `Change: new\n` +
+    `Client: ${sc.client}\n` +
+    `User: ${cfg.p4_user}\n` +
+    `Status: new\n` +
+    `Description:\n${descLines}\n` +
+    (files.length > 0 ? `Files:\n${fileLines}\n` : '');
 
-  const { stdout } = await run('p4', [...p4Args(cfg), 'change', '-i'], cwd, true);
+  const { stdout } = await run(
+    'p4',
+    [...p4Args(cfg), '-c', sc.client, 'change', '-i'],
+    cwd,
+    true,
+    spec
+  );
   const m = stdout.match(/Change (\d+) created/);
-  return m ? parseInt(m[1]) : -1;
+  return m ? parseInt(m[1], 10) : -1;
 }
 
 export async function p4OpenP4V(
