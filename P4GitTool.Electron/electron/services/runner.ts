@@ -10,13 +10,15 @@ export async function run(
   cmd: string,
   args: string[],
   cwd?: string,
-  silent = false
+  silent = false,
+  stdin?: string
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     const proc = spawn(cmd, args, {
       cwd: cwd ?? process.cwd(),
       shell: true,
       windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stdout = '';
@@ -28,6 +30,11 @@ export async function run(
     proc.on('close', (code) => {
       resolve({ code: code ?? 1, stdout, stderr });
     });
+
+    if (stdin !== undefined) {
+      proc.stdin.write(stdin);
+    }
+    proc.stdin.end();
   });
 }
 
