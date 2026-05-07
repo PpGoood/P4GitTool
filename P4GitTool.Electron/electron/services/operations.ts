@@ -137,7 +137,7 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
 
 export async function pull(
   rootDir: string, stream: string, scope: string, mode: string,
-  log: LogFn, onConflict?: () => Promise<boolean>
+  log: LogFn
 ): Promise<boolean> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
@@ -146,19 +146,39 @@ export async function pull(
   const repo = repoPath(rootDir, stream);
 
   if (!await p4.p4Login(cfg)) { log('[ERROR] P4 登录失败'); return false; }
-  if (!await git.gitCheckClean(repo)) { log('[ERROR] 工作区有未提交的改动，请先处理'); return false; }
 
-  const originBranch = await git.currentBranch(repo);
-  const baseBranch = stream;
+  // Sync 前保护：若工作区有未提交改动，先 commit 一个快照
+  const dirty = !(await git.gitCheckClean(repo));
+  if (dirty) {
+    log('[INFO] 检测到未提交改动，自动创建 Sync 前保护快照...');
+    await run('git', ['add', '-A'], repo, true);
+    if (!await git.gitCommit(repo, `sync 前自动保护 ${new Date().toISOString()}`)) {
+      log('[ERROR] Sync 前保护提交失败'); return false;
+    }
+    log('[OK] Sync 前保护快照已创建');
+  }
 
   log(`[INFO] 正在从 P4 同步代码 (范围: ${scope}, 模式: ${mode})...`);
   if (!await p4.p4Sync(cfg, stream, scopePaths(scope), mode === 'force', log)) return false;
 
-  const commitMsg = `update: 同步P4 ${stream} ${scope}代码`;
+  // 更新 mirror/p4（plumbing，不切换分支）
+  const commitMsg = `update: 同步 P4 ${stream} ${scope} 代码`;
   if (!await snapshotToMirror(repo, scope, commitMsg, log)) return false;
-  if (!await mergeForward(repo, 'mirror/p4', baseBranch, originBranch, log, onConflict)) return false;
 
-  log(`[OK] Pull 完成，当前分支: ${await git.currentBranch(repo)}`);
+  // 合并 mirror/p4 -> 当前分支（stream 名）
+  const curBranch = await git.currentBranch(repo);
+  log(`[INFO] 正在合并 mirror/p4 → ${curBranch}...`);
+  if (!await git.gitMerge(repo, 'mirror/p4')) {
+    log('[ERROR] 合并有冲突，请在 Fork 或命令行中手动解决');
+    return false;
+  }
+
+  // 收尾：对齐 P4 have 记录
+  if (!await p4.p4SyncKeep(cfg, stream)) {
+    log('[WARN] p4 sync -k 失败，have 记录可能不一致');
+  }
+
+  log(`[OK] Pull 完成`);
   return true;
 }
 
@@ -290,7 +310,7 @@ export async function confirmSubmit(
   if (!await mergeForward(repo, 'mirror/p4', baseBranch, baseBranch, log, onConflict)) return false;
 
   log(`[INFO] 正在合并 ${featureBranch} → ${baseBranch}...`);
-  if (!await mergeBranchNoSwitch(repo, featureBranch, baseBranch, log, onConflict)) return false;
+  if (!await mergeForward(repo, featureBranch, baseBranch, baseBranch, log, onConflict)) return false;
 
   deletePendingState(rootDir);
   log('[OK] 提交完成');
