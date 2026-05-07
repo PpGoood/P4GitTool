@@ -219,45 +219,36 @@ export async function checkOutdated(
 // -------------------------------------------------------
 
 export async function checkAndUpdate(
-  rootDir: string, stream: string, log: LogFn,
-  onConflict?: () => Promise<boolean>
-): Promise<'ready' | 'blocked' | 'conflict' | 'error'> {
+  rootDir: string, stream: string, log: LogFn
+): Promise<'ready' | 'outdated' | 'error'> {
   const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return 'error'; }
+
   const repo = repoPath(rootDir, stream);
 
-  if (!await git.gitCheckClean(repo)) {
-    log('[ERROR] 工作区有未提交的改动，请先 Commit 或 Stash');
-    return 'error';
-  }
+  if (!await p4.p4Login(cfg)) { log('[ERROR] P4 登录失败'); return 'error'; }
 
+  // 对齐 have 记录，消除假改动
+  log('[INFO] 对齐 P4 have 记录...');
+  await p4.p4SyncKeep(cfg, stream);
+
+  // 检查候选文件是否有过期
   const candidates = await buildCandidates(rootDir, stream);
   if (candidates.length === 0) {
-    log('[INFO] 没有候选文件，无需提交');
+    log('[INFO] 无改动文件');
     return 'ready';
   }
 
-  log(`[INFO] 候选文件 ${candidates.length} 个，检查 P4 版本...`);
-  await p4.p4Clean(cfg, stream, ['Source/...', 'Content/Script/...']);
-
+  log(`[INFO] 检查 ${candidates.length} 个候选文件的版本...`);
   const outdated = await checkOutdated(rootDir, stream, candidates);
-  if (outdated.length === 0) {
-    log('[OK] 所有文件状态正常，可以提交');
-    return 'ready';
+  if (outdated.length > 0) {
+    log(`[WARN] 发现 ${outdated.length} 个过期文件，请先执行 P4 Sync 更新`);
+    return 'outdated';
   }
 
-  log(`[WARN] 发现 ${outdated.length} 个过期文件，正在同步...`);
-  if (!await p4.p4SyncFiles(cfg, stream, outdated)) {
-    log('[ERROR] 同步过期文件失败'); return 'error';
-  }
-
-  const commitMsg = `update: 同步P4 ${stream} 过期文件`;
-  if (!await snapshotToMirror(repo, 'all', commitMsg, log)) return 'error';
-
-  const curBranch = await git.currentBranch(repo);
-  if (!await mergeForward(repo, 'mirror/p4', stream, curBranch, log, onConflict)) return 'conflict';
-
-  log('[OK] 同步完成，重新检查状态...');
-  return await checkAndUpdate(rootDir, stream, log, onConflict);
+  log('[OK] 所有候选文件均为最新');
+  return 'ready';
 }
 
 // -------------------------------------------------------
@@ -266,26 +257,47 @@ export async function checkAndUpdate(
 
 export async function submitPrepare(
   rootDir: string, stream: string, log: LogFn
-): Promise<boolean> {
+): Promise<{ ok: boolean; changelist?: number }> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
-  if (!sc) return false;
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
+
+  // 先 checkAndUpdate
+  const status = await checkAndUpdate(rootDir, stream, log);
+  if (status !== 'ready') {
+    log(`[ERROR] 未通过检查：${status}`);
+    return { ok: false };
+  }
 
   const candidates = await buildCandidates(rootDir, stream);
-  if (candidates.length === 0) { log('[ERROR] 没有候选文件'); return false; }
+  if (candidates.length === 0) {
+    log('[INFO] 无可提交文件');
+    return { ok: false };
+  }
 
+  // p4 reconcile
   log(`[INFO] 正在 reconcile ${candidates.length} 个文件...`);
-  await p4.p4Reconcile(cfg, stream, candidates);
+  if (!await p4.p4Reconcile(cfg, stream, candidates)) {
+    log('[ERROR] p4 reconcile 失败'); return { ok: false };
+  }
 
-  const cl = await p4.p4CreateChangelist(cfg, stream, '待提交', candidates);
-  if (cl < 0) { log('[ERROR] 创建 Changelist 失败'); return false; }
+  // 创建 Changelist
+  const opened = await p4.p4GetOpenedFiles(cfg, stream);
+  if (opened.length === 0) {
+    log('[INFO] reconcile 后无 opened 文件，可能没有实际改动');
+    return { ok: false };
+  }
 
-  const curBranch = await git.currentBranch(repoPath(rootDir, stream));
-  savePendingState(rootDir, { stream, featureBranch: curBranch, baseBranch: stream, changelist: cl, candidateFiles: candidates });
+  const description = `[P4Git] ${stream} 提交 ${new Date().toISOString().slice(0, 16)}`;
+  const cl = await p4.p4CreateChangelist(cfg, stream, description, opened);
+  if (cl < 0) {
+    log('[ERROR] 创建 Changelist 失败'); return { ok: false };
+  }
 
-  log(`[OK] Changelist #${cl} 已创建，正在打开 P4V...`);
+  log(`[OK] Changelist ${cl} 已创建，打开 P4V...`);
   await p4.p4OpenP4V(cfg, stream, cl);
-  return true;
+
+  return { ok: true, changelist: cl };
 }
 
 // -------------------------------------------------------
@@ -293,27 +305,33 @@ export async function submitPrepare(
 // -------------------------------------------------------
 
 export async function confirmSubmit(
-  rootDir: string, log: LogFn, onConflict?: () => Promise<boolean>
+  rootDir: string, stream: string, log: LogFn
 ): Promise<boolean> {
-  const state = loadPendingState(rootDir);
-  if (!state) { log('[ERROR] 没有待确认的提交记录'); return false; }
-
   const cfg = loadConfig();
-  const { stream, featureBranch, baseBranch, candidateFiles, changelist } = state;
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+
   const repo = repoPath(rootDir, stream);
 
-  log(`[INFO] 正在同步已提交的 ${candidateFiles.length} 个文件...`);
-  await p4.p4SyncFiles(cfg, stream, candidateFiles);
+  log('[INFO] 用户已在 P4V 完成提交，正在同步结果...');
 
-  const commitMsg = `update: 同步P4提交 ${stream} CL#${changelist}`;
+  // 同步刚提交的文件（拉回 P4 上的最新版本）
+  if (!await p4.p4Sync(cfg, stream, ['...'], false, log)) {
+    log('[ERROR] p4 sync 失败'); return false;
+  }
+
+  // 更新 mirror/p4 并 merge 到当前分支
+  const commitMsg = `submit: ${stream} 提交已完成 ${new Date().toISOString()}`;
   if (!await snapshotToMirror(repo, 'all', commitMsg, log)) return false;
-  if (!await mergeForward(repo, 'mirror/p4', baseBranch, baseBranch, log, onConflict)) return false;
 
-  log(`[INFO] 正在合并 ${featureBranch} → ${baseBranch}...`);
-  if (!await mergeForward(repo, featureBranch, baseBranch, baseBranch, log, onConflict)) return false;
+  if (!await git.gitMerge(repo, 'mirror/p4')) {
+    log('[WARN] 合并 mirror/p4 失败，请手动检查');
+  }
 
-  deletePendingState(rootDir);
-  log('[OK] 提交完成');
+  // 收尾
+  await p4.p4SyncKeep(cfg, stream);
+
+  log(`[OK] 提交流程完成`);
   return true;
 }
 
