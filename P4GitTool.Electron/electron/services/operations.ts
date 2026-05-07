@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import yaml from 'js-yaml';
 import { loadConfig, repoPath, p4Root, getStream } from './config';
 import * as git from './git';
 import * as p4 from './p4';
@@ -69,66 +70,11 @@ export async function snapshotToMirror(
   return true;
 }
 
-// -------------------------------------------------------
-// 无冲突时不切换分支完成 merge
-// -------------------------------------------------------
-
-export async function mergeBranchNoSwitch(
-  repo: string, src: string, dst: string, log: LogFn,
-  onConflict?: () => Promise<boolean>
-): Promise<boolean> {
-  const mbHash = await git.mergeBase(repo, src, dst);
-  const srcHash = await git.revParse(repo, src);
-  const dstHash = await git.revParse(repo, dst);
-
-  if (mbHash === srcHash) { log(`[INFO] ${dst} 已是最新`); return true; }
-
-  if (mbHash === dstHash) {
-    await git.updateRef(repo, dst, srcHash);
-    log(`[OK] ${dst} fast-forward 到 ${src}`);
-    return true;
-  }
-
-  const { tree, hasConflict } = await git.mergeTree(repo, dst, src);
-
-  if (!hasConflict) {
-    const mergeHash = await git.commitTree(repo, tree, dstHash, `update: merge ${src} into ${dst}`);
-    // merge commit 需要两个 parent
-    const { stdout } = await run('git', ['commit-tree', tree, '-p', dstHash, '-p', srcHash, '-m', `update: merge ${src} into ${dst}`], repo, true);
-    const hash = stdout.trim();
-    if (!hash) { log(`[ERROR] commit-tree 失败: ${src} -> ${dst}`); return false; }
-    await git.updateRef(repo, dst, hash);
-    log(`[OK] ${dst} 已合并 ${src}`);
-    return true;
-  }
-
-  // 有冲突，切换到 dst 处理
-  log(`[WARN] ${src} → ${dst} 存在冲突，切换分支处理...`);
-  const curBranch = await git.currentBranch(repo);
-  if (!await git.gitCheckout(repo, dst)) { log('[ERROR] 切换分支失败'); return false; }
-  if (!await git.gitMerge(repo, src)) {
-    if (onConflict) {
-      const resolved = await onConflict();
-      if (!resolved) return false;
-    } else {
-      log('[ERROR] 合并冲突，需要手动解决');
-      return false;
-    }
-  }
-  if (curBranch !== dst) await git.gitCheckout(repo, curBranch);
-  return true;
-}
-
-export async function mergeForward(
-  repo: string, from: string, baseBranch: string, originBranch: string,
-  log: LogFn, onConflict?: () => Promise<boolean>
-): Promise<boolean> {
-  if (!await mergeBranchNoSwitch(repo, from, baseBranch, log, onConflict)) return false;
-  if (originBranch !== baseBranch) {
-    if (!await mergeBranchNoSwitch(repo, baseBranch, originBranch, log, onConflict)) return false;
-  }
-  return true;
-}
+// 临时保留，让编译通过，Task 9-11 会重写这些调用点
+async function mergeForward(
+  _repo: string, _from: string, _base: string, _origin: string,
+  _log: LogFn, _onConflict?: () => Promise<boolean>
+): Promise<boolean> { return true; }
 
 // -------------------------------------------------------
 // Init
@@ -371,79 +317,12 @@ export async function commitChanges(rootDir: string, stream: string, message: st
   return true;
 }
 
-export interface StashEntry {
-  index: number;
-  name: string;
-  branch: string;
-  stream: string;
-  date: string;
-}
-
-function stashMsg(stream: string, branch: string, name: string) {
-  return `[P4Git|${stream}|${branch}] ${name}`;
-}
-
-function parseStashLine(line: string): { index: number; stream: string; branch: string; name: string } | null {
-  const colonIdx = line.indexOf(':');
-  if (colonIdx < 0) return null;
-  const indexStr = line.slice(0, colonIdx).trim();
-  if (!indexStr.startsWith('stash@{') || !indexStr.endsWith('}')) return null;
-  const idx = parseInt(indexStr.slice(7, -1));
-  if (isNaN(idx)) return null;
-
-  const rest = line.slice(colonIdx + 1);
-  const msgStart = rest.indexOf('[P4Git|');
-  if (msgStart < 0) return null;
-
-  const msgPart = rest.slice(msgStart);
-  const tagEnd = msgPart.indexOf(']');
-  if (tagEnd < 0) return null;
-
-  const tag = msgPart.slice(1, tagEnd);
-  const parts = tag.split('|');
-  if (parts.length !== 3) return null;
-
-  return { index: idx, stream: parts[1], branch: parts[2], name: msgPart.slice(tagEnd + 2).trim() };
-}
-
-export async function listStashes(rootDir: string, stream: string, branch: string): Promise<StashEntry[]> {
-  const repo = repoPath(rootDir, stream);
-  const lines = await git.gitStashList(repo);
-  const dates = await git.gitReflogDates(repo);
-  const result: StashEntry[] = [];
-
-  for (const line of lines) {
-    const parsed = parseStashLine(line);
-    if (!parsed || parsed.stream !== stream || parsed.branch !== branch) continue;
-    result.push({ ...parsed, date: dates.get(parsed.index) ?? '' });
-  }
-  return result;
-}
-
-export async function createStash(rootDir: string, stream: string, name: string, log: LogFn): Promise<boolean> {
-  const repo = repoPath(rootDir, stream);
-  const branch = await git.currentBranch(repo);
-  const { stdout } = await run('git', ['status', '--porcelain'], repo, true);
-  if (!stdout.trim()) { log('[INFO] 没有改动可暂存'); return false; }
-  const msg = stashMsg(stream, branch, name);
-  if (!await git.gitStashPush(repo, msg)) { log('[ERROR] Stash 失败'); return false; }
-  log(`[OK] 已暂存: ${name}`);
-  return true;
-}
-
-export async function popStash(rootDir: string, stream: string, index: number, log: LogFn): Promise<boolean> {
-  const repo = repoPath(rootDir, stream);
-  if (!await git.gitStashPop(repo, index)) { log(`[ERROR] Stash Pop 失败`); return false; }
-  log(`[OK] 已恢复 stash@{${index}}`);
-  return true;
-}
-
-export async function dropStash(rootDir: string, stream: string, index: number, log: LogFn): Promise<boolean> {
-  const repo = repoPath(rootDir, stream);
-  if (!await git.gitStashDrop(repo, index)) { log('[ERROR] Stash Drop 失败'); return false; }
-  log(`[OK] 已删除 stash@{${index}}`);
-  return true;
-}
+// 临时保留以让前端 import 不报错，Plan 2 会删除前端引用后移除此段
+export interface StashEntry { index: number; name: string; branch: string; stream: string; date: string; }
+export async function listStashes(): Promise<StashEntry[]> { return []; }
+export async function createStash(): Promise<boolean> { return false; }
+export async function popStash(): Promise<boolean> { return false; }
+export async function dropStash(): Promise<boolean> { return false; }
 
 export async function getSnapshots(rootDir: string, stream: string) {
   const repo = repoPath(rootDir, stream);
@@ -480,14 +359,12 @@ interface PendingState {
 const PENDING_FILE = '.p4git_pending.yaml';
 
 function savePendingState(rootDir: string, state: PendingState) {
-  const yaml = require('js-yaml');
   fs.writeFileSync(path.join(rootDir, PENDING_FILE), yaml.dump(state), 'utf-8');
 }
 
 function loadPendingState(rootDir: string): PendingState | null {
   const p = path.join(rootDir, PENDING_FILE);
   if (!fs.existsSync(p)) return null;
-  const yaml = require('js-yaml');
   return yaml.load(fs.readFileSync(p, 'utf-8')) as PendingState;
 }
 
