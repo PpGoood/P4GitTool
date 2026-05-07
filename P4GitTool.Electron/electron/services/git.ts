@@ -139,3 +139,27 @@ export async function conflictFiles(repo: string): Promise<string[]> {
   const { stdout } = await run('git', ['diff', '--name-only', '--diff-filter=U'], repo, true);
   return stdout.split('\n').map(l => l.trim()).filter(Boolean);
 }
+
+/**
+ * 对比某文件在工作区与指定 ref 的差异（返回 unified diff 文本）。
+ */
+export async function diffFile(repo: string, filepath: string, base: string): Promise<string> {
+  const { stdout } = await run('git', ['diff', base, '--', filepath], repo, true);
+  return stdout;
+}
+
+/**
+ * 反向应用一个 patch（通过 stdin 传入），用于撤销某个 hunk / line。
+ */
+export async function applyReversePatch(repo: string, patch: string): Promise<boolean> {
+  const { code } = await run('git', ['apply', '--reverse', '--whitespace=nowarn', '-'], repo, true, patch);
+  return code === 0;
+}
+
+/**
+ * 从指定 ref 还原单个文件到工作区。
+ */
+export async function gitCheckoutFile(repo: string, ref: string, filepath: string): Promise<boolean> {
+  const { code } = await run('git', ['checkout', ref, '--', filepath], repo, true);
+  return code === 0;
+}
