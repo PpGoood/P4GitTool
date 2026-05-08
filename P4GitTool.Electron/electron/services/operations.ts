@@ -495,10 +495,21 @@ function writeGitAttributes(repo: string) {
 
 async function ensureJunction(repo: string, linkRel: string, target: string, log: LogFn) {
   const linkPath = path.join(repo, linkRel);
-  if (!fs.existsSync(target)) { log(`[WARN] Junction 目标不存在，跳过: ${target}`); return; }
-  if (fs.existsSync(linkPath)) { log(`[OK] Junction 已存在: ${linkRel}`); return; }
-  await run('cmd', ['/c', `mklink /J "${linkPath}" "${target}"`], undefined, true);
-  log(`[OK] Junction 已创建: ${linkRel}`);
+  if (!fs.existsSync(target)) {
+    log(`[WARN] Junction 目标不存在，跳过: ${target}`);
+    return;
+  }
+  if (fs.existsSync(linkPath)) {
+    log(`[OK] Junction 已存在: ${linkRel}`);
+    return;
+  }
+  try {
+    // 用 Node.js 原生 API 创建 Junction，不依赖 cmd.exe
+    fs.symlinkSync(target, linkPath, 'junction');
+    log(`[OK] Junction 已创建: ${linkRel} -> ${target}`);
+  } catch (e: any) {
+    log(`[ERROR] Junction 创建失败: ${linkRel} -> ${target}: ${e.message}`);
+  }
 }
 
 // -------------------------------------------------------
