@@ -110,13 +110,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   loadConfig: async () => {
-    try {
-      const config = await api.getConfig();
-      set({ config });
-      if (!get().currentStream && config.streams.length > 0) {
-        get().setCurrentStream(config.streams[0].name);
+    // 重试最多 5 次，每次间隔 600ms，等待 Express 服务器就绪
+    for (let i = 0; i < 5; i++) {
+      try {
+        const config = await api.getConfig();
+        set({ config });
+        if (!get().currentStream && config.streams.length > 0) {
+          get().setCurrentStream(config.streams[0].name);
+        }
+        return;
+      } catch {
+        if (i < 4) await new Promise(r => setTimeout(r, 600));
       }
-    } catch {}
+    }
   },
 
   saveConfig: async (cfg) => {
