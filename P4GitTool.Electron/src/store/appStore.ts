@@ -1,130 +1,114 @@
 import { create } from 'zustand';
-import { api, FileChange, Snapshot, StashEntry, StreamStatus, P4GitConfig } from '../api/client';
+import {
+  api, FileChange, SnapshotEntry, StreamStatus, P4GitConfig, DiffFile,
+} from '../api/client';
+
+interface WorkspaceState {
+  status: StreamStatus | null;
+  changes: FileChange[];
+  snapshots: SnapshotEntry[];
+  selectedFile: string | null;
+  diff: DiffFile | null;
+}
+
+const EMPTY_WS: WorkspaceState = {
+  status: null,
+  changes: [],
+  snapshots: [],
+  selectedFile: null,
+  diff: null,
+};
 
 interface AppState {
-  // 配置
+  // 全局
   config: P4GitConfig | null;
-
-  // 工作区
-  stream: string;
-  status: StreamStatus | null;
-
-  // 改动文件
-  changes: FileChange[];
-
-  // 快照
-  snapshots: Snapshot[];
-
-  // Stash
-  stashes: StashEntry[];
+  currentStream: string;
+  workspaces: Record<string, WorkspaceState>;
 
   // 日志
   logs: string[];
 
-  // UI 状态
+  // UI
+  timelineCollapsed: boolean;
+  logCollapsed: boolean;
   isLoading: boolean;
-  activePanel: 'changes' | 'stashes' | 'log';
+  loadingOp: string | null;
 
-  // Actions
-  setStream: (stream: string) => void;
-  setActivePanel: (panel: 'changes' | 'stashes' | 'log') => void;
+  // 全局 actions
+  setCurrentStream: (stream: string) => void;
+  toggleTimeline: () => void;
+  toggleLog: () => void;
   appendLog: (line: string) => void;
   clearLogs: () => void;
 
-  // 数据刷新
-  refreshStatus: () => Promise<void>;
-  refreshChanges: () => Promise<void>;
-  refreshSnapshots: () => Promise<void>;
-  refreshStashes: () => Promise<void>;
-  refreshAll: () => Promise<void>;
+  // 配置
   loadConfig: () => Promise<void>;
   saveConfig: (cfg: P4GitConfig) => Promise<void>;
+
+  // 数据刷新
+  refreshStatus: (stream: string) => Promise<void>;
+  refreshChanges: (stream: string) => Promise<void>;
+  refreshSnapshots: (stream: string) => Promise<void>;
+  refreshDiff: (stream: string, filepath: string | null) => Promise<void>;
+  refreshWorkspace: (stream: string) => Promise<void>;
+
+  // 文件选择
+  selectFile: (stream: string, filepath: string | null) => Promise<void>;
 
   // 操作
   runInit: () => Promise<void>;
   runPull: (scope?: string, mode?: string) => Promise<void>;
-  runCheckAndUpdate: () => Promise<void>;
+  runSnapshot: (message: string) => Promise<boolean>;
+  runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
   runSubmitPrepare: () => Promise<void>;
   runSubmitConfirm: () => Promise<void>;
-  runCreateSnapshot: (message: string) => Promise<boolean>;
-  runCreateStash: (name: string) => Promise<boolean>;
-  runPopStash: (index: number) => Promise<boolean>;
-  runDropStash: (index: number) => Promise<boolean>;
+  runDiscardFile: (filepath: string) => Promise<boolean>;
+  runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
+  runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
+  runRollback: (hash: string) => Promise<boolean>;
+
+  // 内部
+  patchWorkspace: (stream: string, patch: Partial<WorkspaceState>) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   config: null,
-  stream: '',
-  status: null,
-  changes: [],
-  snapshots: [],
-  stashes: [],
+  currentStream: '',
+  workspaces: {},
   logs: [],
+  timelineCollapsed: false,
+  logCollapsed: true,
   isLoading: false,
-  activePanel: 'changes',
+  loadingOp: null,
 
-  setStream: (stream) => {
-    set({ stream });
-    get().refreshAll();
+  setCurrentStream: (stream) => {
+    set({ currentStream: stream });
+    get().refreshWorkspace(stream);
   },
 
-  setActivePanel: (panel) => set({ activePanel: panel }),
+  toggleTimeline: () => set((s) => ({ timelineCollapsed: !s.timelineCollapsed })),
+  toggleLog: () => set((s) => ({ logCollapsed: !s.logCollapsed })),
 
-  appendLog: (line) => set((s) => ({ logs: [...s.logs.slice(-500), line] })),
+  appendLog: (line) => set((s) => ({
+    logs: [...s.logs.slice(-500), line],
+    logCollapsed: /\[ERROR\]/i.test(line) ? false : s.logCollapsed,
+  })),
 
   clearLogs: () => set({ logs: [] }),
 
-  refreshStatus: async () => {
-    const { stream } = get();
-    if (!stream) return;
-    try {
-      const status = await api.getStatus(stream);
-      set({ status });
-    } catch {}
-  },
-
-  refreshChanges: async () => {
-    const { stream } = get();
-    if (!stream) return;
-    try {
-      const { files } = await api.getChanges(stream);
-      set({ changes: files });
-    } catch {}
-  },
-
-  refreshSnapshots: async () => {
-    const { stream } = get();
-    if (!stream) return;
-    try {
-      const { snapshots } = await api.getSnapshots(stream);
-      set({ snapshots });
-    } catch {}
-  },
-
-  refreshStashes: async () => {
-    const { stream, status } = get();
-    if (!stream || !status?.branch) return;
-    try {
-      const { stashes } = await api.getStashes(stream, status.branch);
-      set({ stashes });
-    } catch {}
-  },
-
-  refreshAll: async () => {
-    await get().refreshStatus();
-    await Promise.all([
-      get().refreshChanges(),
-      get().refreshSnapshots(),
-      get().refreshStashes(),
-    ]);
-  },
+  patchWorkspace: (stream, patch) => set((s) => ({
+    workspaces: {
+      ...s.workspaces,
+      [stream]: { ...(s.workspaces[stream] ?? EMPTY_WS), ...patch },
+    },
+  })),
 
   loadConfig: async () => {
     try {
       const config = await api.getConfig();
       set({ config });
-      if (!get().stream && config.streams.length > 0) {
-        get().setStream(config.streams[0].name);
+      if (!get().currentStream && config.streams.length > 0) {
+        get().setCurrentStream(config.streams[0].name);
       }
     } catch {}
   },
@@ -135,121 +119,172 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().appendLog('[OK] 配置已保存');
   },
 
+  refreshStatus: async (stream) => {
+    try {
+      const status = await api.getStatus(stream);
+      get().patchWorkspace(stream, { status });
+    } catch {}
+  },
+
+  refreshChanges: async (stream) => {
+    try {
+      const { files } = await api.getChanges(stream);
+      get().patchWorkspace(stream, { changes: files });
+      const ws = get().workspaces[stream];
+      if (ws?.selectedFile && !files.some((f) => f.path === ws.selectedFile)) {
+        get().patchWorkspace(stream, { selectedFile: null, diff: null });
+      }
+    } catch {}
+  },
+
+  refreshSnapshots: async (stream) => {
+    try {
+      const { snapshots } = await api.getSnapshots(stream);
+      get().patchWorkspace(stream, { snapshots });
+    } catch {}
+  },
+
+  refreshDiff: async (stream, filepath) => {
+    if (!filepath) {
+      get().patchWorkspace(stream, { diff: null });
+      return;
+    }
+    try {
+      const { diff } = await api.getDiff(stream, filepath);
+      get().patchWorkspace(stream, { diff });
+    } catch {
+      get().patchWorkspace(stream, { diff: null });
+    }
+  },
+
+  refreshWorkspace: async (stream) => {
+    if (!stream) return;
+    await Promise.all([
+      get().refreshStatus(stream),
+      get().refreshChanges(stream),
+      get().refreshSnapshots(stream),
+    ]);
+    const ws = get().workspaces[stream];
+    if (ws?.selectedFile) {
+      await get().refreshDiff(stream, ws.selectedFile);
+    }
+  },
+
+  selectFile: async (stream, filepath) => {
+    get().patchWorkspace(stream, { selectedFile: filepath });
+    await get().refreshDiff(stream, filepath);
+  },
+
   runInit: async () => {
-    set({ isLoading: true });
+    set({ isLoading: true, loadingOp: 'init' });
     get().clearLogs();
     try {
       await api.init();
-      setTimeout(() => get().refreshAll(), 2000);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, loadingOp: null });
     }
   },
 
   runPull: async (scope = 'all', mode = 'standard') => {
-    const { stream } = get();
-    if (!stream) return;
-    set({ isLoading: true });
-    get().clearLogs();
+    const s = get().currentStream;
+    if (!s) return;
+    set({ isLoading: true, loadingOp: 'pull' });
     try {
-      await api.pull(stream, scope, mode);
-      setTimeout(() => get().refreshAll(), 1000);
+      await api.pull(s, scope, mode);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, loadingOp: null });
     }
   },
 
-  runCheckAndUpdate: async () => {
-    const { stream } = get();
-    if (!stream) return;
-    set({ isLoading: true });
-    get().clearLogs();
+  runSnapshot: async (message) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    set({ isLoading: true, loadingOp: 'snapshot' });
     try {
-      await api.checkAndUpdate(stream);
-      setTimeout(() => get().refreshAll(), 1000);
+      const { ok } = await api.snapshot(s, message);
+      if (ok) await get().refreshWorkspace(s);
+      return ok;
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
+
+  runCheckUpdate: async () => {
+    const s = get().currentStream;
+    if (!s) return 'error' as const;
+    set({ isLoading: true, loadingOp: 'check-update' });
+    try {
+      const { status } = await api.checkUpdate(s);
+      return status;
+    } catch {
+      return 'error' as const;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
     }
   },
 
   runSubmitPrepare: async () => {
-    const { stream } = get();
-    if (!stream) return;
-    set({ isLoading: true });
-    get().clearLogs();
+    const s = get().currentStream;
+    if (!s) return;
+    set({ isLoading: true, loadingOp: 'submit-prepare' });
     try {
-      await api.submitPrepare(stream);
-      setTimeout(() => get().refreshStatus(), 1000);
+      await api.submitPrepare(s);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, loadingOp: null });
     }
   },
 
   runSubmitConfirm: async () => {
-    set({ isLoading: true });
-    get().clearLogs();
+    const s = get().currentStream;
+    if (!s) return;
+    set({ isLoading: true, loadingOp: 'submit-confirm' });
     try {
-      await api.submitConfirm();
-      setTimeout(() => get().refreshAll(), 1000);
+      await api.submitConfirm(s);
+      await get().refreshWorkspace(s);
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, loadingOp: null });
     }
   },
 
-  runCreateSnapshot: async (message) => {
-    const { stream } = get();
-    if (!stream) return false;
-    try {
-      const { ok } = await api.createSnapshot(stream, message);
-      if (ok) {
-        await get().refreshChanges();
-        await get().refreshSnapshots();
-      }
-      return ok;
-    } catch {
-      return false;
-    }
+  runDiscardFile: async (filepath) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    const { ok } = await api.discardFile(s, filepath);
+    if (ok) await get().refreshWorkspace(s);
+    return ok;
   },
 
-  runCreateStash: async (name) => {
-    const { stream } = get();
-    if (!stream) return false;
-    try {
-      const { ok } = await api.createStash(stream, name);
-      if (ok) {
-        await get().refreshChanges();
-        await get().refreshStashes();
-      }
-      return ok;
-    } catch {
-      return false;
-    }
+  runDiscardHunk: async (filepath, hunkIndex) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    const { ok } = await api.discardHunk(s, filepath, hunkIndex);
+    if (ok) await get().refreshWorkspace(s);
+    return ok;
   },
 
-  runPopStash: async (index) => {
-    const { stream } = get();
-    if (!stream) return false;
-    try {
-      const { ok } = await api.popStash(stream, index);
-      if (ok) {
-        await get().refreshChanges();
-        await get().refreshStashes();
-      }
-      return ok;
-    } catch {
-      return false;
-    }
+  runDiscardLine: async (filepath, hunkIndex, lineIndex) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    const { ok } = await api.discardLine(s, filepath, hunkIndex, lineIndex);
+    if (ok) await get().refreshWorkspace(s);
+    return ok;
   },
 
-  runDropStash: async (index) => {
-    const { stream } = get();
-    if (!stream) return false;
+  runRollback: async (hash) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    set({ isLoading: true, loadingOp: 'rollback' });
     try {
-      const { ok } = await api.dropStash(stream, index);
-      if (ok) await get().refreshStashes();
+      const { ok } = await api.rollback(s, hash);
+      if (ok) await get().refreshWorkspace(s);
       return ok;
-    } catch {
-      return false;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
     }
   },
 }));
+
+// helper: 取当前工作区的数据
+export function useCurrentWorkspace(): WorkspaceState {
+  return useAppStore((s) => s.workspaces[s.currentStream] ?? EMPTY_WS);
+}
