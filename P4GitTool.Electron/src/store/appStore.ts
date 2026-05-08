@@ -200,6 +200,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().clearLogs();
     try {
       await api.init();
+      // Init 完成后自动刷新所有工作区状态
+      const s = get().currentStream;
+      if (s) await get().refreshWorkspace(s);
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

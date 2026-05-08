@@ -124,10 +124,10 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   // /api 前缀（路由通过 getRootDir() 动态获取 rootDir）
   app.use('/api', eventsRouter);
   app.use('/api', createConfigRouter(onConfigChanged));
-  app.use('/api', createWorkspaceRouter(currentRootDir));
-  app.use('/api', createOperationsRouter(currentRootDir));
-  app.use('/api', createDiscardRouter(currentRootDir));
-  app.use('/api', createRollbackRouter(currentRootDir));
+  app.use('/api', createWorkspaceRouter(() => currentRootDir));
+  app.use('/api', createOperationsRouter(() => currentRootDir));
+  app.use('/api', createDiscardRouter(() => currentRootDir));
+  app.use('/api', createRollbackRouter(() => currentRootDir));
 
   // 文件监听 → 总线事件
   watcher = new WorkspaceWatcher({ debounceMs: 500 });

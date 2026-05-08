@@ -6,12 +6,12 @@ function emitDone(op: string, stream: string, ok: boolean, detail?: string) {
   eventBus.emit({ type: 'op-done', op, stream, ok, detail });
 }
 
-export function createOperationsRouter(rootDir: string): Router {
+export function createOperationsRouter(getRootDir: () => string): Router {
   const router = Router();
 
   router.post('/init', async (_req, res) => {
     res.json({ ok: true, message: 'started' });
-    const ok = await ops.init(rootDir, makeLogFn());
+    const ok = await ops.init(getRootDir(), makeLogFn());
     emitDone('init', '', ok);
   });
 
@@ -19,7 +19,7 @@ export function createOperationsRouter(rootDir: string): Router {
     const { stream, scope = 'all', mode = 'standard' } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     res.json({ ok: true, message: 'started' });
-    const ok = await ops.pull(rootDir, stream, scope, mode, makeLogFn());
+    const ok = await ops.pull(getRootDir(), stream, scope, mode, makeLogFn());
     emitDone('pull', stream, ok);
   });
 
@@ -27,7 +27,7 @@ export function createOperationsRouter(rootDir: string): Router {
     const { stream, message } = req.body ?? {};
     if (!stream || !message) { res.status(400).json({ error: 'stream and message required' }); return; }
     try {
-      const ok = await ops.commitSnapshot(rootDir, stream, message, makeLogFn());
+      const ok = await ops.commitSnapshot(getRootDir(), stream, message, makeLogFn());
       emitDone('snapshot', stream, ok);
       res.json({ ok });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -37,7 +37,7 @@ export function createOperationsRouter(rootDir: string): Router {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     try {
-      const status = await ops.checkAndUpdate(rootDir, stream, makeLogFn());
+      const status = await ops.checkAndUpdate(getRootDir(), stream, makeLogFn());
       emitDone('check-update', stream, status === 'ready', status);
       res.json({ status });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -47,7 +47,7 @@ export function createOperationsRouter(rootDir: string): Router {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     res.json({ ok: true, message: 'started' });
-    const result = await ops.submitPrepare(rootDir, stream, makeLogFn());
+    const result = await ops.submitPrepare(getRootDir(), stream, makeLogFn());
     emitDone('submit-prepare', stream, result.ok, result.changelist?.toString());
   });
 
@@ -55,11 +55,11 @@ export function createOperationsRouter(rootDir: string): Router {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     res.json({ ok: true, message: 'started' });
-    const ok = await ops.confirmSubmit(rootDir, stream, makeLogFn());
+    const ok = await ops.confirmSubmit(getRootDir(), stream, makeLogFn());
     emitDone('submit-confirm', stream, ok);
   });
 
   return router;
 }
 
-export const operationsRouter = createOperationsRouter('');
+export const operationsRouter = createOperationsRouter(() => '');

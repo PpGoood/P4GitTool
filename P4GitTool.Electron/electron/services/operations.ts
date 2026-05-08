@@ -694,16 +694,46 @@ export async function discardLine(
 
 /**
  * 获取指定文件相对 mirror/p4 的结构化 diff。
- * 包含已提交和未提交的所有改动。
+ * 新增文件（mirror/p4 里不存在）返回全部内容作为新增行。
  */
 export async function getFileDiff(
   rootDir: string, stream: string, filepath: string
 ): Promise<DiffFile | null> {
   const repo = repoPath(rootDir, stream);
+
+  // 先尝试 git diff mirror/p4
   const { stdout } = await run(
     'git', ['diff', 'mirror/p4', '--', filepath], repo, true
   );
-  if (!stdout.trim()) return null;
-  const files = parseUnifiedDiff(stdout);
-  return files[0] ?? null;
+  if (stdout.trim()) {
+    const files = parseUnifiedDiff(stdout);
+    return files[0] ?? null;
+  }
+
+  // diff 为空：可能是新增文件（mirror/p4 里不存在）
+  // 读取文件内容，构造全绿 diff
+  const absPath = path.join(repo, filepath);
+  if (!fs.existsSync(absPath)) return null;
+
+  try {
+    const content = fs.readFileSync(absPath, 'utf-8');
+    const lines = content.split('\n');
+    // 去掉末尾空行
+    if (lines[lines.length - 1] === '') lines.pop();
+
+    return {
+      oldPath: filepath,
+      newPath: filepath,
+      hunks: [{
+        header: `@@ -0,0 +1,${lines.length} @@`,
+        oldStart: 0,
+        oldLines: 0,
+        newStart: 1,
+        newLines: lines.length,
+        lines: lines.map(l => ({ type: 'add' as const, content: l })),
+      }],
+    };
+  } catch {
+    return null;
+  }
 }
