@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -71,7 +71,6 @@ async function createWindow(serverPort: number) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      additionalArguments: [`--api-port=${serverPort}`],
     },
   });
 
@@ -96,6 +95,11 @@ app.whenReady().then(async () => {
     console.error('[P4Git] startServer failed:', e);
     serverPort = await startServer(app.getPath('userData'));
   }
+
+  // 通过 IPC 把端口暴露给 preload
+  ipcMain.handle('get-api-port', () => serverPort);
+  console.log('[P4Git] api port registered via IPC:', serverPort);
+
   await createWindow(serverPort);
 
   app.on('activate', () => {

@@ -1,13 +1,18 @@
-// 获取 API 端口（Electron 注入，开发模式用固定端口）
-function getBaseUrl(): string {
-  if (typeof window !== 'undefined' && (window as any).electron) {
-    return `http://127.0.0.1:${(window as any).electron.apiPort()}`;
+// 获取 API 端口（通过 IPC 异步获取，缓存结果）
+let cachedPort: number | null = null;
+
+async function getBaseUrl(): Promise<string> {
+  if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
+  if (typeof window !== 'undefined' && (window as any).electron?.getApiPort) {
+    cachedPort = await (window as any).electron.getApiPort();
+    return `http://127.0.0.1:${cachedPort}`;
   }
   return 'http://127.0.0.1:3001';
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${getBaseUrl()}/api${path}`, {
+  const baseUrl = await getBaseUrl();
+  const res = await fetch(`${baseUrl}/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined,
@@ -134,15 +139,25 @@ export const api = {
 
   // SSE 统一事件流
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
-    const es = new EventSource(`${getBaseUrl()}/api/events`);
-    es.onmessage = (evt) => {
-      try {
-        const data = JSON.parse(evt.data);
-        onEvent(data);
-      } catch {
-        // 忽略非 JSON 行
-      }
+    let es: EventSource | null = null;
+    let closed = false;
+
+    getBaseUrl().then(baseUrl => {
+      if (closed) return;
+      es = new EventSource(`${baseUrl}/api/events`);
+      es.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          onEvent(data);
+        } catch {
+          // 忽略非 JSON 行
+        }
+      };
+    });
+
+    return () => {
+      closed = true;
+      es?.close();
     };
-    return () => es.close();
   },
 };
