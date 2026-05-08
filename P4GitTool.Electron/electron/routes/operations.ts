@@ -12,7 +12,13 @@ export function createOperationsRouter(getRootDir: () => string): Router {
   router.post('/init', async (_req, res) => {
     res.json({ ok: true, message: 'started' });
     const ok = await ops.init(getRootDir(), makeLogFn());
-    emitDone('init', '', ok);
+    // init 完成后通知每个 stream 刷新
+    const { loadConfig } = await import('../services/config');
+    const cfg = loadConfig();
+    for (const s of cfg.streams) {
+      emitDone('init', s.name, ok);
+    }
+    if (cfg.streams.length === 0) emitDone('init', '', ok);
   });
 
   router.post('/pull', async (req, res) => {
