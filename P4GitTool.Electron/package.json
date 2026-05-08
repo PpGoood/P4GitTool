@@ -57,6 +57,9 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
+    "asarUnpack": [
+      "dist-electron/preload.js"
+    ],
     "win": {
       "target": "nsis",
       "icon": "public/icon.ico"

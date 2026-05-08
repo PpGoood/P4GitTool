@@ -54,6 +54,13 @@ function getDefaultWorkspacesDir(): string {
 }
 
 async function createWindow(serverPort: number) {
+  // preload 必须在真实文件系统上（不能在 asar 内），所以用 app.asar.unpacked 路径
+  const preloadPath = process.env.NODE_ENV === 'development'
+    ? path.join(__dirname, 'preload.js')
+    : path.join(path.dirname(process.execPath), 'resources', 'app.asar.unpacked', 'dist-electron', 'preload.js');
+
+  console.log('[P4Git] preload path:', preloadPath);
+  console.log('[P4Git] preload exists:', fs.existsSync(preloadPath));
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -67,7 +74,7 @@ async function createWindow(serverPort: number) {
       height: 40,
     },
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
