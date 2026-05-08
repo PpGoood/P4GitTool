@@ -1,5 +1,6 @@
-// 获取 API 端口（通过 IPC 异步获取，缓存结果）
-let cachedPort: number | null = null;
+// API 端口固定为 3001（server.ts 优先使用 3001，被占用时随机）
+// 不再依赖 IPC，避免 preload 通信问题
+const API_PORT = 3001;
 
 function rlog(msg: string) {
   if (typeof window !== 'undefined' && (window as any).electron?.log) {
@@ -7,31 +8,13 @@ function rlog(msg: string) {
   }
 }
 
-async function getBaseUrl(): Promise<string> {
-  if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
-
-  rlog('getBaseUrl: 开始获取端口');
-  rlog(`getBaseUrl: window.electron = ${JSON.stringify(Object.keys((window as any).electron ?? {}))}`);
-
-  if (typeof window !== 'undefined' && (window as any).electron?.getApiPort) {
-    try {
-      cachedPort = await (window as any).electron.getApiPort();
-      rlog(`getBaseUrl: IPC 返回端口 ${cachedPort}`);
-    } catch (e: any) {
-      rlog(`getBaseUrl: IPC 失败 ${e.message}，使用 3001`);
-      cachedPort = 3001;
-    }
-    return `http://127.0.0.1:${cachedPort}`;
-  }
-
-  rlog('getBaseUrl: electron.getApiPort 不存在，使用 3001');
-  return 'http://127.0.0.1:3001';
+function getBaseUrl(): string {
+  return `http://127.0.0.1:${API_PORT}`;
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const baseUrl = await getBaseUrl();
-  const url = `${baseUrl}/api${path}`;
-  rlog(`REQ ${method} ${url} body=${body ? JSON.stringify(body).slice(0, 100) : 'none'}`);
+  const url = `${getBaseUrl()}/api${path}`;
+  rlog(`REQ ${method} ${url}`);
   try {
     const res = await fetch(url, {
       method,
@@ -117,31 +100,25 @@ export type AppEvent =
 // -------------------------------------------------------
 
 export const api = {
-  // 配置
   getConfig: () => get<P4GitConfig>('/config'),
   saveConfig: (cfg: P4GitConfig) => post<{ ok: boolean }>('/config', cfg),
 
-  // 状态
   getStatus: (stream: string) =>
     get<StreamStatus>(`/status?stream=${encodeURIComponent(stream)}`),
 
-  // 改动文件
   getChanges: (stream: string) =>
     get<{ files: FileChange[] }>(`/changes?stream=${encodeURIComponent(stream)}`),
 
-  // Diff
   getDiff: (stream: string, filepath: string) =>
     get<{ diff: DiffFile | null }>(
       `/diff?stream=${encodeURIComponent(stream)}&path=${encodeURIComponent(filepath)}`
     ),
 
-  // 快照列表
   getSnapshots: (stream: string, limit = 100) =>
     get<{ snapshots: SnapshotEntry[] }>(
       `/snapshots?stream=${encodeURIComponent(stream)}&limit=${limit}`
     ),
 
-  // 操作
   init: () => post<{ ok: boolean }>('/init'),
   pull: (stream: string, scope = 'all', mode = 'standard') =>
     post<{ ok: boolean }>('/pull', { stream, scope, mode }),
@@ -152,7 +129,6 @@ export const api = {
   submitPrepare: (stream: string) => post<{ ok: boolean }>('/submit-prepare', { stream }),
   submitConfirm: (stream: string) => post<{ ok: boolean }>('/submit-confirm', { stream }),
 
-  // Discard
   discardFile: (stream: string, path: string) =>
     post<{ ok: boolean }>('/discard-file', { stream, path }),
   discardHunk: (stream: string, path: string, hunkIndex: number) =>
@@ -160,34 +136,21 @@ export const api = {
   discardLine: (stream: string, path: string, hunkIndex: number, lineIndex: number) =>
     post<{ ok: boolean }>('/discard-line', { stream, path, hunkIndex, lineIndex }),
 
-  // Rollback
   rollback: (stream: string, hash: string) =>
     post<{ ok: boolean }>('/rollback', { stream, hash }),
 
-  // SSE 统一事件流
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
-    let es: EventSource | null = null;
-    let closed = false;
-
-    getBaseUrl().then(baseUrl => {
-      if (closed) return;
-      rlog(`SSE 连接: ${baseUrl}/api/events`);
-      es = new EventSource(`${baseUrl}/api/events`);
-      es.onopen = () => rlog('SSE 连接成功');
-      es.onerror = (e) => rlog(`SSE 连接错误: ${JSON.stringify(e)}`);
-      es.onmessage = (evt) => {
-        try {
-          const data = JSON.parse(evt.data);
-          onEvent(data);
-        } catch {
-          // 忽略非 JSON 行
-        }
-      };
-    });
-
-    return () => {
-      closed = true;
-      es?.close();
+    const url = `${getBaseUrl()}/api/events`;
+    rlog(`SSE 连接: ${url}`);
+    const es = new EventSource(url);
+    es.onopen = () => rlog('SSE 连接成功');
+    es.onerror = (e) => rlog(`SSE 错误: ${JSON.stringify(e)}`);
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        onEvent(data);
+      } catch {}
     };
+    return () => es.close();
   },
 };

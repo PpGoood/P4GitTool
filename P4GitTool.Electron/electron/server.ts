@@ -13,14 +13,23 @@ import { createOperationsRouter } from './routes/operations';
 import { createDiscardRouter } from './routes/discard';
 import { createRollbackRouter } from './routes/rollback';
 
-async function findAvailablePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
+async function findAvailablePort(preferred = 3001): Promise<number> {
+  // 先尝试固定端口 3001，失败再随机
+  return new Promise((resolve) => {
     const srv = net.createServer();
     srv.unref();
-    srv.on('error', reject);
-    srv.listen(0, '127.0.0.1', () => {
-      const port = (srv.address() as any).port;
-      srv.close(() => resolve(port));
+    srv.on('error', () => {
+      // 3001 被占用，随机找一个
+      const srv2 = net.createServer();
+      srv2.unref();
+      srv2.on('error', () => resolve(preferred));
+      srv2.listen(0, '127.0.0.1', () => {
+        const port = (srv2.address() as any).port;
+        srv2.close(() => resolve(port));
+      });
+    });
+    srv.listen(preferred, '127.0.0.1', () => {
+      srv.close(() => resolve(preferred));
     });
   });
 }
@@ -60,7 +69,7 @@ async function refreshWatcher(rootDir: string) {
 }
 
 export async function startServer(defaultRootDir: string): Promise<number> {
-  const port = await findAvailablePort();
+  const port = await findAvailablePort(3001);
 
   // 先用默认目录读配置，如果配置里有 workspaces_dir 则切换
   fs.mkdirSync(defaultRootDir, { recursive: true });
@@ -115,6 +124,7 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   return new Promise<number>((resolve) => {
     app.listen(port, '127.0.0.1', () => {
       console.log(`[API] Server started on port ${port}`);
+      // 把端口写入文件，前端通过 /api/port 读取
       resolve(port);
     });
   });
