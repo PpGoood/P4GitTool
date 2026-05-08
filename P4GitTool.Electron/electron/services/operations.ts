@@ -90,6 +90,8 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
     const gitDir = path.join(repo, '.git');
     if (!fs.existsSync(gitDir)) {
       await run('git', ['init', '-b', 'mirror/p4'], repo, true);
+      await run('git', ['config', 'user.email', 'p4git@local'], repo, true);
+      await run('git', ['config', 'user.name', 'P4Git Tool'], repo, true);
       await run('git', ['config', 'core.quotepath', 'false'], repo, true);
       await run('git', ['config', 'i18n.logOutputEncoding', 'utf-8'], repo, true);
       await run('git', ['config', 'i18n.commitEncoding', 'utf-8'], repo, true);
@@ -109,8 +111,16 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
     await run('git', ['add', '-A'], repo, true);
     const { code: diffCode } = await run('git', ['diff', '--cached', '--quiet'], repo, true);
     if (diffCode !== 0) {
-      await run('git', ['commit', '-m', `build: 导入 ${stream} P4 初始快照`], repo, true);
-      log(`[OK] ${stream} 初始快照已提交`);
+      const { code: commitCode, stderr: commitErr } = await run(
+        'git', ['commit', '-m', `build: 导入 ${stream} P4 初始快照`], repo, true
+      );
+      if (commitCode === 0) {
+        log(`[OK] ${stream} 初始快照已提交`);
+      } else {
+        log(`[ERROR] ${stream} 初始快照提交失败: ${commitErr}`);
+      }
+    } else {
+      log(`[INFO] ${stream} 无新文件需要提交`);
     }
 
     if (!await git.branchExists(repo, stream)) {
@@ -411,10 +421,13 @@ export async function getSnapshots(rootDir: string, stream: string) {
 
 export async function getStreamStatus(rootDir: string, stream: string) {
   const repo = repoPath(rootDir, stream);
-  const gitInited = fs.existsSync(path.join(repo, '.git'));
+  const hasGitDir = fs.existsSync(path.join(repo, '.git'));
   const sourceJunc = fs.existsSync(path.join(repo, 'Source'));
-  const branch = gitInited ? await git.currentBranch(repo) : '';
-  const branches = gitInited ? await git.listBranches(repo) : [];
+
+  // gitInited = .git 存在 且 stream 分支已创建（说明 init 已完整完成）
+  const gitInited = hasGitDir && await git.branchExists(repo, stream);
+  const branch = hasGitDir ? await git.currentBranch(repo) : '';
+  const branches = hasGitDir ? await git.listBranches(repo) : [];
   const pendingSubmit = fs.existsSync(path.join(rootDir, '.p4git_pending.yaml'));
   return { gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit };
 }
