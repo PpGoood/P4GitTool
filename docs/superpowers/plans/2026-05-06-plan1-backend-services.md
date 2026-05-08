@@ -125,32 +125,51 @@ git commit -m "chore: add chokidar and vitest for backend refactor"
 Create: `P4GitTool.Electron/electron/services/runner.test.ts`
 
 ```typescript
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { run } from './runner';
 
+// 说明：Windows 下 spawn('node', [...], {shell:true}) 会走 cmd.exe，cmd 对 -e 参数里
+// 的 `>` `;` 空格等有特殊含义。最稳的办法是把 JS 写到临时文件，参数里不再有特殊字符。
+
 describe('run', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p4git-runner-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it('执行简单命令并返回 stdout', async () => {
-    const result = await run('node', ['-e', 'console.log("hello")']);
+    const script = path.join(tmpDir, 'hello.js');
+    fs.writeFileSync(script, `process.stdout.write('hello');`);
+    const result = await run('node', [script]);
     expect(result.code).toBe(0);
-    expect(result.stdout.trim()).toBe('hello');
+    expect(result.stdout).toBe('hello');
   });
 
   it('支持 stdin 输入', async () => {
-    const result = await run(
-      'node',
-      ['-e', 'let s="";process.stdin.on("data",d=>s+=d);process.stdin.on("end",()=>process.stdout.write(s))'],
-      undefined,
-      true,
-      'hello from stdin'
+    const script = path.join(tmpDir, 'echo.js');
+    fs.writeFileSync(
+      script,
+      `let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>process.stdout.write(s));`
     );
+    const result = await run('node', [script], undefined, true, 'hello from stdin');
     expect(result.code).toBe(0);
     expect(result.stdout).toBe('hello from stdin');
   });
 
   it('stdin 为空字符串时不挂起', async () => {
-    const result = await run('node', ['-e', 'console.log("ok")'], undefined, true, '');
+    const script = path.join(tmpDir, 'ok.js');
+    fs.writeFileSync(script, `process.stdout.write('ok');`);
+    const result = await run('node', [script], undefined, true, '');
     expect(result.code).toBe(0);
-    expect(result.stdout.trim()).toBe('ok');
+    expect(result.stdout).toBe('ok');
   });
 });
 ```
@@ -432,9 +451,11 @@ describe('parseUnifiedDiff', () => {
   it('hunk 包含每行的类型', () => {
     const files = parseUnifiedDiff(SAMPLE_DIFF);
     const lines = files[0].hunks[0].lines;
-    expect(lines.some(l => l.type === 'del' && l.content === 'damage *= 1.0f;')).toBe(true);
-    expect(lines.some(l => l.type === 'add' && l.content === 'damage *= multiplier;')).toBe(true);
-    expect(lines.some(l => l.type === 'ctx' && l.content === 'float damage = base;')).toBe(true);
+    // 注意：parseUnifiedDiff 只剥掉 diff 前缀字符（+/-/空格），
+    // 保留代码本身的缩进，这样才能原样还原 patch。
+    expect(lines.some(l => l.type === 'del' && l.content === '  damage *= 1.0f;')).toBe(true);
+    expect(lines.some(l => l.type === 'add' && l.content === '  damage *= multiplier;')).toBe(true);
+    expect(lines.some(l => l.type === 'ctx' && l.content === '  float damage = base;')).toBe(true);
   });
 
   it('空 diff 返回空数组', () => {

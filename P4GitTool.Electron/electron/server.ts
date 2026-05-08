@@ -1,17 +1,16 @@
 import express from 'express';
 import net from 'net';
 import path from 'path';
-import { app as electronApp } from 'electron';
 import { setConfigPath, loadConfig, repoPath } from './services/config';
 import { eventBus } from './services/eventBus';
 import { WorkspaceWatcher } from './services/watcher';
 
 import { eventsRouter } from './routes/events';
 import { createConfigRouter } from './routes/config';
-import { workspaceRouter } from './routes/workspace';
-import { operationsRouter } from './routes/operations';
-import { discardRouter } from './routes/discard';
-import { rollbackRouter } from './routes/rollback';
+import { createWorkspaceRouter } from './routes/workspace';
+import { createOperationsRouter } from './routes/operations';
+import { createDiscardRouter } from './routes/discard';
+import { createRollbackRouter } from './routes/rollback';
 
 async function findAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -59,14 +58,13 @@ async function refreshWatcher(rootDir: string) {
   }
 }
 
-export async function startServer(): Promise<number> {
+export async function startServer(rootDir: string): Promise<number> {
   const port = await findAvailablePort();
-  const rootDir = electronApp.getPath('userData');
 
-  // 配置文件路径
+  // 配置文件路径：和 exe 在同一目录
   const configFilePath = path.join(rootDir, 'p4git.yaml');
   setConfigPath(configFilePath);
-  console.log('[P4Git] userData:', rootDir);
+  console.log('[P4Git] rootDir:', rootDir);
   console.log('[P4Git] config path:', configFilePath);
 
   // 装配 Express
@@ -82,13 +80,11 @@ export async function startServer(): Promise<number> {
 
   // /api 前缀
   app.use('/api', eventsRouter);
-  app.use('/api', createConfigRouter(async () => {
-    await refreshWatcher(rootDir);
-  }));
-  app.use('/api', workspaceRouter);
-  app.use('/api', operationsRouter);
-  app.use('/api', discardRouter);
-  app.use('/api', rollbackRouter);
+  app.use('/api', createConfigRouter(async () => { await refreshWatcher(rootDir); }));
+  app.use('/api', createWorkspaceRouter(rootDir));
+  app.use('/api', createOperationsRouter(rootDir));
+  app.use('/api', createDiscardRouter(rootDir));
+  app.use('/api', createRollbackRouter(rootDir));
 
   // 文件监听 → 总线事件
   watcher = new WorkspaceWatcher({ debounceMs: 500 });

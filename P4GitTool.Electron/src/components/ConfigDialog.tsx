@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, X, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { P4GitConfig } from '../api/client';
@@ -15,6 +15,13 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
   const [form, setForm] = useState<P4GitConfig>(
     config ?? { p4_port: '', p4_user: '', streams: [] }
   );
+
+  // 每次打开对话框时，用最新的 config 重置表单
+  useEffect(() => {
+    if (open && config) {
+      setForm(config);
+    }
+  }, [open, config]);
 
   if (!open) return null;
 

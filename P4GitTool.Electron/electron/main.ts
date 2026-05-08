@@ -8,6 +8,14 @@ const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 
+// exe 在哪里启动，rootDir 就在哪里（Git 仓库和配置文件都建在这里）
+function getRootDir(): string {
+  if (process.env.NODE_ENV === 'development') {
+    return app.getPath('userData');
+  }
+  return path.dirname(process.execPath);
+}
+
 async function createWindow(serverPort: number) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -43,7 +51,7 @@ async function createWindow(serverPort: number) {
 }
 
 app.whenReady().then(async () => {
-  const serverPort = await startServer();
+  const serverPort = await startServer(getRootDir());
   await createWindow(serverPort);
 
   app.on('activate', () => {
