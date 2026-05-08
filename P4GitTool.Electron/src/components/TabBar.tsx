@@ -49,7 +49,7 @@ export const TabBar: React.FC<Props> = ({ onOpenConfig }) => {
         })}
       </div>
 
-      <div className="ml-auto flex gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="ml-auto flex gap-1 mr-[138px]" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={() => currentStream && refreshWorkspace(currentStream)}
           title="刷新"

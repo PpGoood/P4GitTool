@@ -64,7 +64,10 @@ export async function startServer(): Promise<number> {
   const rootDir = electronApp.getPath('userData');
 
   // 配置文件路径
-  setConfigPath(path.join(rootDir, 'p4git.yaml'));
+  const configFilePath = path.join(rootDir, 'p4git.yaml');
+  setConfigPath(configFilePath);
+  console.log('[P4Git] userData:', rootDir);
+  console.log('[P4Git] config path:', configFilePath);
 
   // 装配 Express
   const app = express();
