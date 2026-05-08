@@ -14,6 +14,9 @@ const App: React.FC = () => {
 
   const loadConfig = useAppStore((s) => s.loadConfig);
   const config = useAppStore((s) => s.config);
+  const isLoading = useAppStore((s) => s.isLoading);
+  const loadingOp = useAppStore((s) => s.loadingOp);
+  const logs = useAppStore((s) => s.logs);
   const submitPending = useAppStore((s) => s.submitPending);
   const submitChangelist = useAppStore((s) => s.submitChangelist);
   const runSubmitConfirm = useAppStore((s) => s.runSubmitConfirm);
@@ -32,6 +35,38 @@ const App: React.FC = () => {
   return (
     <div className="h-screen w-screen flex flex-col bg-[#1e1e1e] text-[#ccc] overflow-hidden">
       <TabBar onOpenConfig={() => setConfigOpen(true)} />
+
+      {/* 全局操作遮罩：长时间操作期间阻止交互 */}
+      {isLoading && loadingOp && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex flex-col items-center justify-center gap-4">
+          <div className="bg-[#252526] border border-[#444] rounded-lg px-8 py-6 flex flex-col items-center gap-4 min-w-[320px] max-w-[480px]">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 border-2 border-[#007acc] border-t-transparent rounded-full animate-spin" />
+              <span className="text-[#ccc] text-[13px] font-bold">
+                {loadingOp === 'init' ? '正在初始化工作区...' :
+                 loadingOp === 'pull' ? '正在同步 P4...' :
+                 loadingOp === 'submit-prepare' ? '正在准备提交...' :
+                 loadingOp === 'rollback' ? '正在回滚...' :
+                 '处理中...'}
+              </span>
+            </div>
+            {/* 显示最新几条日志 */}
+            {logs.length > 0 && (
+              <div className="w-full bg-[#1a1a1a] rounded p-3 font-mono text-[10px] max-h-[120px] overflow-y-auto">
+                {logs.slice(-6).map((l, i) => (
+                  <div key={i} className={
+                    /\[ERROR\]/i.test(l) ? 'text-[#f48771]' :
+                    /\[OK\]/i.test(l) ? 'text-[#4ec9b0]' :
+                    /\[WARN\]/i.test(l) ? 'text-[#cca700]' :
+                    'text-[#888]'
+                  }>{l}</div>
+                ))}
+              </div>
+            )}
+            <p className="text-[#666] text-[10px]">请勿关闭窗口或重复点击</p>
+          </div>
+        </div>
+      )}
 
       {submitPending && (
         <div className="bg-[#cca700] text-black px-4 py-2 flex items-center gap-3 text-[12px]">
