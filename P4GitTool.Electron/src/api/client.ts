@@ -21,7 +21,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 const get = <T>(path: string) => request<T>('GET', path);
 const post = <T>(path: string, body?: unknown) => request<T>('POST', path, body);
-const del = <T>(path: string) => request<T>('DELETE', path);
 
 // -------------------------------------------------------
 // Types
@@ -40,18 +39,33 @@ export interface FileChange {
   path: string;
 }
 
-export interface Snapshot {
+export interface SnapshotEntry {
   hash: string;
-  message: string;
+  parentHash: string;
   date: string;
+  message: string;
+  kind: 'sync' | 'sync-protect' | 'manual' | 'submit' | 'other';
+  fileCount: number;
 }
 
-export interface StashEntry {
-  index: number;
-  name: string;
-  branch: string;
-  stream: string;
-  date: string;
+export interface DiffLine {
+  type: 'ctx' | 'add' | 'del';
+  content: string;
+}
+
+export interface DiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: DiffLine[];
+}
+
+export interface DiffFile {
+  oldPath: string;
+  newPath: string;
+  hunks: DiffHunk[];
 }
 
 export interface P4GitConfig {
@@ -59,6 +73,11 @@ export interface P4GitConfig {
   p4_user: string;
   streams: { name: string; client: string; root: string }[];
 }
+
+export type AppEvent =
+  | { type: 'log'; line: string }
+  | { type: 'files-changed'; stream: string }
+  | { type: 'op-done'; op: string; stream: string; ok: boolean; detail?: string };
 
 // -------------------------------------------------------
 // API
@@ -70,36 +89,59 @@ export const api = {
   saveConfig: (cfg: P4GitConfig) => post<{ ok: boolean }>('/config', cfg),
 
   // 状态
-  getStatus: (stream: string) => get<StreamStatus>(`/status?stream=${encodeURIComponent(stream)}`),
-
-  // 分支
-  getBranches: (stream: string) => get<{ branches: string[]; current: string }>(`/branches?stream=${encodeURIComponent(stream)}`),
+  getStatus: (stream: string) =>
+    get<StreamStatus>(`/status?stream=${encodeURIComponent(stream)}`),
 
   // 改动文件
-  getChanges: (stream: string) => get<{ files: FileChange[] }>(`/changes?stream=${encodeURIComponent(stream)}`),
+  getChanges: (stream: string) =>
+    get<{ files: FileChange[] }>(`/changes?stream=${encodeURIComponent(stream)}`),
 
-  // 快照
-  createSnapshot: (stream: string, message: string) => post<{ ok: boolean }>('/snapshot', { stream, message }),
-  getSnapshots: (stream: string) => get<{ snapshots: Snapshot[] }>(`/snapshots?stream=${encodeURIComponent(stream)}`),
+  // Diff
+  getDiff: (stream: string, filepath: string) =>
+    get<{ diff: DiffFile | null }>(
+      `/diff?stream=${encodeURIComponent(stream)}&path=${encodeURIComponent(filepath)}`
+    ),
 
-  // Stash
-  getStashes: (stream: string, branch: string) =>
-    get<{ stashes: StashEntry[] }>(`/stashes?stream=${encodeURIComponent(stream)}&branch=${encodeURIComponent(branch)}`),
-  createStash: (stream: string, name: string) => post<{ ok: boolean }>('/stash', { stream, name }),
-  popStash: (stream: string, index: number) => post<{ ok: boolean }>('/stash/pop', { stream, index }),
-  dropStash: (stream: string, index: number) => del<{ ok: boolean }>(`/stash/${index}?stream=${encodeURIComponent(stream)}`),
+  // 快照列表
+  getSnapshots: (stream: string, limit = 100) =>
+    get<{ snapshots: SnapshotEntry[] }>(
+      `/snapshots?stream=${encodeURIComponent(stream)}&limit=${limit}`
+    ),
 
   // 操作
   init: () => post<{ ok: boolean }>('/init'),
-  pull: (stream: string, scope = 'all', mode = 'standard') => post<{ ok: boolean }>('/pull', { stream, scope, mode }),
-  checkAndUpdate: (stream: string) => post<{ ok: boolean }>('/check-update', { stream }),
+  pull: (stream: string, scope = 'all', mode = 'standard') =>
+    post<{ ok: boolean }>('/pull', { stream, scope, mode }),
+  snapshot: (stream: string, message: string) =>
+    post<{ ok: boolean }>('/snapshot', { stream, message }),
+  checkUpdate: (stream: string) =>
+    post<{ status: 'ready' | 'outdated' | 'error' }>('/check-update', { stream }),
   submitPrepare: (stream: string) => post<{ ok: boolean }>('/submit-prepare', { stream }),
-  submitConfirm: () => post<{ ok: boolean }>('/submit-confirm'),
+  submitConfirm: (stream: string) => post<{ ok: boolean }>('/submit-confirm', { stream }),
 
-  // SSE 日志流
-  subscribeLog: (onLine: (line: string) => void): () => void => {
-    const es = new EventSource(`${getBaseUrl()}/api/log/stream`);
-    es.onmessage = (e) => onLine(e.data);
+  // Discard
+  discardFile: (stream: string, path: string) =>
+    post<{ ok: boolean }>('/discard-file', { stream, path }),
+  discardHunk: (stream: string, path: string, hunkIndex: number) =>
+    post<{ ok: boolean }>('/discard-hunk', { stream, path, hunkIndex }),
+  discardLine: (stream: string, path: string, hunkIndex: number, lineIndex: number) =>
+    post<{ ok: boolean }>('/discard-line', { stream, path, hunkIndex, lineIndex }),
+
+  // Rollback
+  rollback: (stream: string, hash: string) =>
+    post<{ ok: boolean }>('/rollback', { stream, hash }),
+
+  // SSE 统一事件流
+  subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
+    const es = new EventSource(`${getBaseUrl()}/api/events`);
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        onEvent(data);
+      } catch {
+        // 忽略非 JSON 行
+      }
+    };
     return () => es.close();
   },
 };
