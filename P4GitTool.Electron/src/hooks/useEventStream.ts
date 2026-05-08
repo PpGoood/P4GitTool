@@ -23,7 +23,13 @@ export function useEventStream(): void {
           break;
 
         case 'op-done':
-          // 操作完成后刷新全部数据（含状态、快照）
+          if (e.op === 'submit-prepare' && e.ok) {
+            const cl = e.detail ? parseInt(e.detail, 10) : undefined;
+            store.setSubmitPending(true, cl);
+          }
+          if (e.op === 'submit-confirm' && e.ok) {
+            store.setSubmitPending(false);
+          }
           if (e.stream) store.refreshWorkspace(e.stream);
           break;
       }

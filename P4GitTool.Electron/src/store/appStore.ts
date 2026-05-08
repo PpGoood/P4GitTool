@@ -33,6 +33,9 @@ interface AppState {
   logCollapsed: boolean;
   isLoading: boolean;
   loadingOp: string | null;
+  submitPending: boolean;
+  submitChangelist: number | null;
+  setSubmitPending: (v: boolean, cl?: number) => void;
 
   // 全局 actions
   setCurrentStream: (stream: string) => void;
@@ -80,6 +83,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   logCollapsed: true,
   isLoading: false,
   loadingOp: null,
+  submitPending: false,
+  submitChangelist: null,
+  setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
 
   setCurrentStream: (stream) => {
     set({ currentStream: stream });
