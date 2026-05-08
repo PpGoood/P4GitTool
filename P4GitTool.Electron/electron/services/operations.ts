@@ -72,12 +72,6 @@ export async function snapshotToMirror(
   return true;
 }
 
-// 临时保留，让编译通过，Task 9-11 会重写这些调用点
-async function mergeForward(
-  _repo: string, _from: string, _base: string, _origin: string,
-  _log: LogFn, _onConflict?: () => Promise<boolean>
-): Promise<boolean> { return true; }
-
 // -------------------------------------------------------
 // Init
 // -------------------------------------------------------
@@ -404,12 +398,6 @@ export async function commitChanges(rootDir: string, stream: string, message: st
   return true;
 }
 
-// 临时保留以让前端 import 不报错，Plan 2 会删除前端引用后移除此段
-export interface StashEntry { index: number; name: string; branch: string; stream: string; date: string; }
-export async function listStashes(): Promise<StashEntry[]> { return []; }
-export async function createStash(): Promise<boolean> { return false; }
-export async function popStash(): Promise<boolean> { return false; }
-export async function dropStash(): Promise<boolean> { return false; }
 
 export async function getSnapshots(rootDir: string, stream: string) {
   const repo = repoPath(rootDir, stream);
