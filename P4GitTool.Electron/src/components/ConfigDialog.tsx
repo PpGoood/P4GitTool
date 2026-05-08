@@ -1,15 +1,22 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Settings, X, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { P4GitConfig } from '../api/client';
 
-export function ConfigDialog({ onClose }: { onClose: () => void }) {
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
   const config = useAppStore((s) => s.config);
   const saveConfig = useAppStore((s) => s.saveConfig);
 
   const [form, setForm] = useState<P4GitConfig>(
     config ?? { p4_port: '', p4_user: '', streams: [] }
   );
+
+  if (!open) return null;
 
   const handleSave = async () => {
     await saveConfig(form);
@@ -103,7 +110,7 @@ export function ConfigDialog({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
-}
+};
 
 function Field({ label, value, onChange, placeholder }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string;
