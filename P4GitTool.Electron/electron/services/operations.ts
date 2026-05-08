@@ -89,16 +89,22 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
 
     const gitDir = path.join(repo, '.git');
     if (!fs.existsSync(gitDir)) {
-      await run('git', ['init', '-b', 'mirror/p4'], repo, true);
+      const initRes = await run('git', ['init', '-b', 'mirror/p4'], repo, true);
+      log(`[INFO] git init: ${initRes.code === 0 ? 'OK' : initRes.stderr}`);
       await run('git', ['config', 'user.email', 'p4git@local'], repo, true);
       await run('git', ['config', 'user.name', 'P4Git Tool'], repo, true);
       await run('git', ['config', 'core.quotepath', 'false'], repo, true);
+      await run('git', ['config', 'core.symlinks', 'false'], repo, true);
       await run('git', ['config', 'i18n.logOutputEncoding', 'utf-8'], repo, true);
       await run('git', ['config', 'i18n.commitEncoding', 'utf-8'], repo, true);
       writeGitIgnore(repo);
       writeGitAttributes(repo);
       await run('git', ['add', '.gitignore', '.gitattributes'], repo, true);
       await run('git', ['commit', '-m', `init: ${stream} workspace`], repo, true);
+    } else {
+      // 已有 .git，确保 symlinks 配置正确
+      await run('git', ['config', 'core.symlinks', 'false'], repo, true);
+      log(`[INFO] ${stream} .git 已存在，跳过 git init`);
     }
 
     fs.mkdirSync(path.join(repo, 'Content'), { recursive: true });
