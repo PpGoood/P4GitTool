@@ -7,6 +7,41 @@ import { startServer, stopServer } from './server';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ── 文件日志系统 ──────────────────────────────────────────
+// 日志写到 exe 旁边的 p4git.log，方便排查问题
+function setupFileLogger() {
+  const logPath = path.join(path.dirname(process.execPath), 'p4git.log');
+  const logStream = fs.createWriteStream(logPath, { flags: 'a' });
+
+  const timestamp = () => new Date().toISOString();
+  const write = (level: string, args: any[]) => {
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    logStream.write(`[${timestamp()}] [${level}] ${msg}\n`);
+  };
+
+  const origLog = console.log.bind(console);
+  const origError = console.error.bind(console);
+  const origWarn = console.warn.bind(console);
+
+  console.log = (...args) => { origLog(...args); write('INFO', args); };
+  console.error = (...args) => { origError(...args); write('ERROR', args); };
+  console.warn = (...args) => { origWarn(...args); write('WARN', args); };
+
+  // 未捕获的异常也写入日志
+  process.on('uncaughtException', (e) => {
+    write('FATAL', [`uncaughtException: ${e.stack ?? e.message}`]);
+  });
+  process.on('unhandledRejection', (reason) => {
+    write('FATAL', [`unhandledRejection: ${reason}`]);
+  });
+
+  logStream.write(`\n${'='.repeat(60)}\n[${timestamp()}] P4Git Tool 启动\n${'='.repeat(60)}\n`);
+  console.log('[P4Git] log file:', logPath);
+}
+
+setupFileLogger();
+// ─────────────────────────────────────────────────────────
+
 let mainWindow: BrowserWindow | null = null;
 
 // 默认工作目录：exe 旁边的 workspaces\ 文件夹
