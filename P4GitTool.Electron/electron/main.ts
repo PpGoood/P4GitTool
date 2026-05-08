@@ -10,12 +10,12 @@ const __dirname = path.dirname(__filename);
 let mainWindow: BrowserWindow | null = null;
 
 // 默认工作目录：exe 旁边的 workspaces\ 文件夹
-// 用户可以在设置里改 workspaces_dir 覆盖这个默认值
 function getDefaultWorkspacesDir(): string {
   if (process.env.NODE_ENV === 'development') {
     return app.getPath('userData');
   }
-  return path.join(path.dirname(process.execPath), 'workspaces');
+  // app.getPath('exe') 在打包后返回真实的 exe 路径
+  return path.join(path.dirname(app.getPath('exe')), 'workspaces');
 }
 
 async function createWindow(serverPort: number) {
@@ -53,7 +53,13 @@ async function createWindow(serverPort: number) {
 }
 
 app.whenReady().then(async () => {
-  const serverPort = await startServer(getDefaultWorkspacesDir());
+  let serverPort: number;
+  try {
+    serverPort = await startServer(getDefaultWorkspacesDir());
+  } catch (e) {
+    console.error('[P4Git] startServer failed:', e);
+    serverPort = await startServer(app.getPath('userData'));
+  }
   await createWindow(serverPort);
 
   app.on('activate', () => {
