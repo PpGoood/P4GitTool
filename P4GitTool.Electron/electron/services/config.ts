@@ -11,12 +11,14 @@ export interface StreamConfig {
 export interface P4GitConfig {
   p4_port: string;
   p4_user: string;
+  workspaces_dir: string;  // Git 仓库存放目录，agent 在这里工作
   streams: StreamConfig[];
 }
 
 const DEFAULT_CONFIG: P4GitConfig = {
   p4_port: '',
   p4_user: '',
+  workspaces_dir: '',
   streams: [],
 };
 

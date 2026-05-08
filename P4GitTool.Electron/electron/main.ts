@@ -1,19 +1,21 @@
 import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { startServer } from './server';
+import { startServer, stopServer } from './server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
 
-// exe 在哪里启动，rootDir 就在哪里（Git 仓库和配置文件都建在这里）
-function getRootDir(): string {
+// 默认工作目录：exe 旁边的 workspaces\ 文件夹
+// 用户可以在设置里改 workspaces_dir 覆盖这个默认值
+function getDefaultWorkspacesDir(): string {
   if (process.env.NODE_ENV === 'development') {
     return app.getPath('userData');
   }
-  return path.dirname(process.execPath);
+  return path.join(path.dirname(process.execPath), 'workspaces');
 }
 
 async function createWindow(serverPort: number) {
@@ -51,7 +53,7 @@ async function createWindow(serverPort: number) {
 }
 
 app.whenReady().then(async () => {
-  const serverPort = await startServer(getRootDir());
+  const serverPort = await startServer(getDefaultWorkspacesDir());
   await createWindow(serverPort);
 
   app.on('activate', () => {

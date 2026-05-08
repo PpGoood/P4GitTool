@@ -13,13 +13,13 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
   const saveConfig = useAppStore((s) => s.saveConfig);
 
   const [form, setForm] = useState<P4GitConfig>(
-    config ?? { p4_port: '', p4_user: '', streams: [] }
+    config ?? { p4_port: '', p4_user: '', workspaces_dir: '', streams: [] }
   );
 
   // 每次打开对话框时，用最新的 config 重置表单
   useEffect(() => {
     if (open && config) {
-      setForm(config);
+      setForm({ workspaces_dir: '', ...config });
     }
   }, [open, config]);
 
@@ -69,6 +69,20 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
             <div className="text-[#858585] text-[11px] uppercase tracking-wider">P4 配置</div>
             <Field label="P4 Port" value={form.p4_port} onChange={(v) => setForm((f) => ({ ...f, p4_port: v }))} placeholder="ssl:server:1666" />
             <Field label="P4 User" value={form.p4_user} onChange={(v) => setForm((f) => ({ ...f, p4_user: v }))} placeholder="username" />
+          </div>
+
+          {/* 工作目录 */}
+          <div className="space-y-3">
+            <div className="text-[#858585] text-[11px] uppercase tracking-wider">工作目录</div>
+            <Field
+              label="Git 仓库目录"
+              value={form.workspaces_dir ?? ''}
+              onChange={(v) => setForm((f) => ({ ...f, workspaces_dir: v }))}
+              placeholder="留空则使用默认目录（exe 旁边的 workspaces\）"
+            />
+            <div className="text-[#666] text-[10px]">
+              agent 在此目录下工作。每个 P4 Stream 对应一个子文件夹，例如 workspaces\dev\
+            </div>
           </div>
 
           {/* Streams */}

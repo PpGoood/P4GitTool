@@ -71,6 +71,7 @@ export interface DiffFile {
 export interface P4GitConfig {
   p4_port: string;
   p4_user: string;
+  workspaces_dir: string;
   streams: { name: string; client: string; root: string }[];
 }
 

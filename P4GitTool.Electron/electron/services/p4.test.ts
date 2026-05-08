@@ -12,6 +12,7 @@ import type { P4GitConfig } from './config';
 const cfg: P4GitConfig = {
   p4_port: 'ssl:server:1666',
   p4_user: 'alice',
+  workspaces_dir: '',
   streams: [{ name: 'dev', client: 'alice_dev', root: 'D:/P4/dev' }],
 };
 

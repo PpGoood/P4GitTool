@@ -1,6 +1,7 @@
 import express from 'express';
 import net from 'net';
 import path from 'path';
+import fs from 'fs';
 import { setConfigPath, loadConfig, repoPath } from './services/config';
 import { eventBus } from './services/eventBus';
 import { WorkspaceWatcher } from './services/watcher';
@@ -58,12 +59,23 @@ async function refreshWatcher(rootDir: string) {
   }
 }
 
-export async function startServer(rootDir: string): Promise<number> {
+export async function startServer(defaultRootDir: string): Promise<number> {
   const port = await findAvailablePort();
 
-  // 配置文件路径：和 exe 在同一目录
-  const configFilePath = path.join(rootDir, 'p4git.yaml');
+  // 先用默认目录读配置，如果配置里有 workspaces_dir 则切换
+  fs.mkdirSync(defaultRootDir, { recursive: true });
+  const configFilePath = path.join(defaultRootDir, 'p4git.yaml');
   setConfigPath(configFilePath);
+
+  const cfg = loadConfig();
+  const rootDir = cfg.workspaces_dir
+    ? cfg.workspaces_dir
+    : defaultRootDir;
+
+  // 确保实际工作目录存在
+  fs.mkdirSync(rootDir, { recursive: true });
+
+  console.log('[P4Git] defaultRootDir:', defaultRootDir);
   console.log('[P4Git] rootDir:', rootDir);
   console.log('[P4Git] config path:', configFilePath);
 
