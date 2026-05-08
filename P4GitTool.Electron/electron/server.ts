@@ -76,20 +76,31 @@ async function refreshWatcher(rootDir: string) {
 export async function startServer(defaultRootDir: string): Promise<number> {
   const port = await findAvailablePort(3001);
 
-  // 先用默认目录读配置，如果配置里有 workspaces_dir 则切换
+  // 第一步：用 defaultRootDir 读取配置，找到 workspaces_dir
   fs.mkdirSync(defaultRootDir, { recursive: true });
-  const configFilePath = path.join(defaultRootDir, 'p4git.yaml');
-  setConfigPath(configFilePath);
+  const defaultConfigPath = path.join(defaultRootDir, 'p4git.yaml');
+  setConfigPath(defaultConfigPath);
+  const defaultCfg = loadConfig();
 
-  const cfg = loadConfig();
-  currentRootDir = cfg.workspaces_dir ? cfg.workspaces_dir : defaultRootDir;
+  // 第二步：如果配置里有 workspaces_dir，把配置文件迁移到那里
+  if (defaultCfg.workspaces_dir) {
+    fs.mkdirSync(defaultCfg.workspaces_dir, { recursive: true });
+    const newConfigPath = path.join(defaultCfg.workspaces_dir, 'p4git.yaml');
+    // 如果 workspaces_dir 里还没有配置文件，从 defaultRootDir 复制过去
+    if (!fs.existsSync(newConfigPath) && fs.existsSync(defaultConfigPath)) {
+      fs.copyFileSync(defaultConfigPath, newConfigPath);
+    }
+    setConfigPath(newConfigPath);
+    currentRootDir = defaultCfg.workspaces_dir;
+  } else {
+    currentRootDir = defaultRootDir;
+  }
 
-  // 确保实际工作目录存在
   fs.mkdirSync(currentRootDir, { recursive: true });
 
   console.log('[P4Git] defaultRootDir:', defaultRootDir);
   console.log('[P4Git] rootDir:', currentRootDir);
-  console.log('[P4Git] config path:', configFilePath);
+  console.log('[P4Git] config path:', path.join(currentRootDir, 'p4git.yaml'));
 
   // 装配 Express
   const app = express();
@@ -115,8 +126,15 @@ export async function startServer(defaultRootDir: string): Promise<number> {
     const newRootDir = newCfg.workspaces_dir ? newCfg.workspaces_dir : defaultRootDir;
     if (newRootDir !== currentRootDir) {
       console.log('[P4Git] rootDir 更新:', newRootDir);
+      // 把配置文件迁移到新的 workspaces_dir
+      const oldConfigPath = path.join(currentRootDir, 'p4git.yaml');
+      const newConfigPath = path.join(newRootDir, 'p4git.yaml');
+      fs.mkdirSync(newRootDir, { recursive: true });
+      if (fs.existsSync(oldConfigPath) && !fs.existsSync(newConfigPath)) {
+        fs.copyFileSync(oldConfigPath, newConfigPath);
+      }
+      setConfigPath(newConfigPath);
       currentRootDir = newRootDir;
-      fs.mkdirSync(currentRootDir, { recursive: true });
     }
     await refreshWatcher(currentRootDir);
   };
