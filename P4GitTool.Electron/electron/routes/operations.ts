@@ -10,15 +10,16 @@ export function createOperationsRouter(getRootDir: () => string): Router {
   const router = Router();
 
   router.post('/init', async (_req, res) => {
-    res.json({ ok: true, message: 'started' });
+    // 同步等待 init 完成再返回，前端 isLoading 才能正确覆盖整个过程
     const ok = await ops.init(getRootDir(), makeLogFn());
-    // init 完成后通知每个 stream 刷新
+    // 通知每个 stream 刷新
     const { loadConfig } = await import('../services/config');
     const cfg = loadConfig();
     for (const s of cfg.streams) {
       emitDone('init', s.name, ok);
     }
     if (cfg.streams.length === 0) emitDone('init', '', ok);
+    res.json({ ok });
   });
 
   router.post('/pull', async (req, res) => {
