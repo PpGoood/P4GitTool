@@ -126,9 +126,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   saveConfig: async (cfg) => {
-    await api.saveConfig(cfg);
-    set({ config: cfg });
-    get().appendLog('[OK] 配置已保存');
+    try {
+      await api.saveConfig(cfg);
+      set({ config: cfg });
+      get().appendLog('[OK] 配置已保存');
+      // 保存后自动切换到第一个工作区
+      if (cfg.streams.length > 0) {
+        get().setCurrentStream(cfg.streams[0].name);
+      }
+    } catch (e: any) {
+      get().appendLog(`[ERROR] 配置保存失败: ${e.message}`);
+    }
   },
 
   refreshStatus: async (stream) => {

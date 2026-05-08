@@ -11,23 +11,37 @@ interface Props {
 export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
   const config = useAppStore((s) => s.config);
   const saveConfig = useAppStore((s) => s.saveConfig);
+  const logCollapsed = useAppStore((s) => s.logCollapsed);
+  const toggleLog = useAppStore((s) => s.toggleLog);
 
   const [form, setForm] = useState<P4GitConfig>(
     config ?? { p4_port: '', p4_user: '', workspaces_dir: '', streams: [] }
   );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   // 每次打开对话框时，用最新的 config 重置表单
   useEffect(() => {
     if (open && config) {
       setForm({ workspaces_dir: '', ...config });
+      setError('');
     }
   }, [open, config]);
 
   if (!open) return null;
 
   const handleSave = async () => {
-    await saveConfig(form);
-    onClose();
+    setSaving(true);
+    setError('');
+    try {
+      await saveConfig(form);
+      onClose();
+    } catch (e: any) {
+      setError(e.message ?? '保存失败，请检查日志');
+      if (logCollapsed) toggleLog();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addStream = () => {
@@ -113,13 +127,21 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
           </div>
         </div>
 
+        {/* 错误提示 */}
+        {error && (
+          <div className="mx-4 mb-2 px-3 py-2 bg-[#f4877122] border border-[#f4877144] rounded text-[#f48771] text-[11px]">
+            {error}
+          </div>
+        )}
+
         {/* 底部按钮 */}
         <div className="flex gap-2 px-4 py-3 border-t border-[#3e3e42]">
           <button
             onClick={handleSave}
-            className="flex-1 bg-[#007acc] hover:bg-[#1a8ad4] text-white text-xs py-1.5 rounded transition-colors"
+            disabled={saving}
+            className="flex-1 bg-[#007acc] hover:bg-[#1a8ad4] disabled:opacity-50 text-white text-xs py-1.5 rounded transition-colors"
           >
-            保存
+            {saving ? '保存中...' : '保存'}
           </button>
           <button
             onClick={onClose}
