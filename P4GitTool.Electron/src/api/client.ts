@@ -9,19 +9,29 @@ function rlog(msg: string) {
 
 async function getBaseUrl(): Promise<string> {
   if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
+
+  rlog('getBaseUrl: 开始获取端口');
+  rlog(`getBaseUrl: window.electron = ${JSON.stringify(Object.keys((window as any).electron ?? {}))}`);
+
   if (typeof window !== 'undefined' && (window as any).electron?.getApiPort) {
-    cachedPort = await (window as any).electron.getApiPort();
-    rlog(`got api port via IPC: ${cachedPort}`);
+    try {
+      cachedPort = await (window as any).electron.getApiPort();
+      rlog(`getBaseUrl: IPC 返回端口 ${cachedPort}`);
+    } catch (e: any) {
+      rlog(`getBaseUrl: IPC 失败 ${e.message}，使用 3001`);
+      cachedPort = 3001;
+    }
     return `http://127.0.0.1:${cachedPort}`;
   }
-  rlog('fallback to port 3001');
+
+  rlog('getBaseUrl: electron.getApiPort 不存在，使用 3001');
   return 'http://127.0.0.1:3001';
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const baseUrl = await getBaseUrl();
   const url = `${baseUrl}/api${path}`;
-  rlog(`${method} ${url}`);
+  rlog(`REQ ${method} ${url} body=${body ? JSON.stringify(body).slice(0, 100) : 'none'}`);
   try {
     const res = await fetch(url, {
       method,
@@ -30,13 +40,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      rlog(`${method} ${url} -> ${res.status} ${err.error}`);
+      rlog(`RES ${method} ${url} -> ${res.status} ERROR: ${err.error}`);
       throw new Error(err.error ?? res.statusText);
     }
-    rlog(`${method} ${url} -> 200 OK`);
+    rlog(`RES ${method} ${url} -> 200 OK`);
     return res.json();
   } catch (e: any) {
-    rlog(`${method} ${url} -> ERROR: ${e.message}`);
+    rlog(`RES ${method} ${url} -> FETCH ERROR: ${e.message}`);
     throw e;
   }
 }
@@ -161,7 +171,10 @@ export const api = {
 
     getBaseUrl().then(baseUrl => {
       if (closed) return;
+      rlog(`SSE 连接: ${baseUrl}/api/events`);
       es = new EventSource(`${baseUrl}/api/events`);
+      es.onopen = () => rlog('SSE 连接成功');
+      es.onerror = (e) => rlog(`SSE 连接错误: ${JSON.stringify(e)}`);
       es.onmessage = (evt) => {
         try {
           const data = JSON.parse(evt.data);
