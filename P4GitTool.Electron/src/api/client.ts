@@ -1,27 +1,44 @@
 // 获取 API 端口（通过 IPC 异步获取，缓存结果）
 let cachedPort: number | null = null;
 
+function rlog(msg: string) {
+  if (typeof window !== 'undefined' && (window as any).electron?.log) {
+    (window as any).electron.log(msg);
+  }
+}
+
 async function getBaseUrl(): Promise<string> {
   if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
   if (typeof window !== 'undefined' && (window as any).electron?.getApiPort) {
     cachedPort = await (window as any).electron.getApiPort();
+    rlog(`got api port via IPC: ${cachedPort}`);
     return `http://127.0.0.1:${cachedPort}`;
   }
+  rlog('fallback to port 3001');
   return 'http://127.0.0.1:3001';
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const baseUrl = await getBaseUrl();
-  const res = await fetch(`${baseUrl}/api${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error ?? res.statusText);
+  const url = `${baseUrl}/api${path}`;
+  rlog(`${method} ${url}`);
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      rlog(`${method} ${url} -> ${res.status} ${err.error}`);
+      throw new Error(err.error ?? res.statusText);
+    }
+    rlog(`${method} ${url} -> 200 OK`);
+    return res.json();
+  } catch (e: any) {
+    rlog(`${method} ${url} -> ERROR: ${e.message}`);
+    throw e;
   }
-  return res.json();
 }
 
 const get = <T>(path: string) => request<T>('GET', path);

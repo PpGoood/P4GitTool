@@ -82,6 +82,13 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   // 装配 Express
   const app = express();
   app.use(express.json({ limit: '2mb' }));
+
+  // 请求日志中间件
+  app.use((req, _res, next) => {
+    console.log(`[HTTP] ${req.method} ${req.url}`);
+    next();
+  });
+
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');

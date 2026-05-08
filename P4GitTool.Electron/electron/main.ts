@@ -98,6 +98,10 @@ app.whenReady().then(async () => {
 
   // 通过 IPC 把端口暴露给 preload
   ipcMain.handle('get-api-port', () => serverPort);
+  // 接收渲染进程日志
+  ipcMain.on('renderer-log', (_event, msg: string) => {
+    console.log('[RENDERER]', msg);
+  });
   console.log('[P4Git] api port registered via IPC:', serverPort);
 
   await createWindow(serverPort);
