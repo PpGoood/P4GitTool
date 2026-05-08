@@ -98,7 +98,7 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
       writeGitIgnore(repo);
       writeGitAttributes(repo);
       await run('git', ['add', '.gitignore', '.gitattributes'], repo, true);
-      await run('git', ['commit', '-m', `build: 初始化 ${stream} P4 工作区`], repo, true);
+      await run('git', ['commit', '-m', `init: ${stream} workspace`], repo, true);
     }
 
     fs.mkdirSync(path.join(repo, 'Content'), { recursive: true });
@@ -108,11 +108,23 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
     await ensureJunction(repo, path.join('Content', 'Script'), path.join(p4r, 'Content', 'Script'), log);
     await ensureJunction(repo, path.join('Saved', 'Logs'), path.join(p4r, 'Saved', 'Logs'), log);
 
+    // 等待文件系统就绪（Junction 创建后 git 需要时间扫描）
+    log('[INFO] 等待文件系统就绪...');
+    await new Promise(r => setTimeout(r, 1000));
+
+    // 确认 Junction 里有文件才 add
+    const sourceDir = path.join(repo, 'Source');
+    const sourceFiles = fs.existsSync(sourceDir) ? fs.readdirSync(sourceDir) : [];
+    log(`[INFO] Source 目录文件数: ${sourceFiles.length}`);
+
+    const { stdout: statusOut } = await run('git', ['status', '--porcelain'], repo, true);
+    log(`[INFO] git status 行数: ${statusOut.split('\n').filter(Boolean).length}`);
+
     await run('git', ['add', '-A'], repo, true);
     const { code: diffCode } = await run('git', ['diff', '--cached', '--quiet'], repo, true);
     if (diffCode !== 0) {
       const { code: commitCode, stderr: commitErr } = await run(
-        'git', ['commit', '-m', `build: 导入 ${stream} P4 初始快照`], repo, true
+        'git', ['commit', '-m', `init: ${stream} initial snapshot`], repo, true
       );
       if (commitCode === 0) {
         log(`[OK] ${stream} 初始快照已提交`);
@@ -158,7 +170,7 @@ export async function pull(
   if (dirty) {
     log('[INFO] 检测到未提交改动，自动创建 Sync 前保护快照...');
     await run('git', ['add', '-A'], repo, true);
-    if (!await git.gitCommit(repo, `sync 前自动保护 ${new Date().toISOString()}`)) {
+    if (!await git.gitCommit(repo, `sync-protect: auto snapshot before sync ${new Date().toISOString()}`)) {
       log('[ERROR] Sync 前保护提交失败'); return false;
     }
     log('[OK] Sync 前保护快照已创建');
@@ -168,7 +180,7 @@ export async function pull(
   if (!await p4.p4Sync(cfg, stream, scopePaths(scope), mode === 'force', log)) return false;
 
   // 更新 mirror/p4（plumbing，不切换分支）
-  const commitMsg = `update: 同步 P4 ${stream} ${scope} 代码`;
+  const commitMsg = `sync: P4 ${stream} ${scope}`;
   if (!await snapshotToMirror(repo, scope, commitMsg, log)) return false;
 
   // 合并 mirror/p4 -> 当前分支（stream 名）
@@ -327,7 +339,7 @@ export async function confirmSubmit(
   }
 
   // 更新 mirror/p4 并 merge 到当前分支
-  const commitMsg = `submit: ${stream} 提交已完成 ${new Date().toISOString()}`;
+  const commitMsg = `submit: ${stream} ${new Date().toISOString()}`;
   if (!await snapshotToMirror(repo, 'all', commitMsg, log)) return false;
 
   if (!await git.gitMerge(repo, 'mirror/p4')) {
@@ -603,8 +615,8 @@ export async function rollbackTo(
     await run('git', ['add', '-A'], repo, true);
     const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
     if (st.trim()) {
-      if (!await git.gitCommit(repo, `revert: 回滚到 ${hash.slice(0, 7)}`)) {
-        log('[ERROR] 回滚后 commit 失败'); return false;
+      if (!await git.gitCommit(repo, `revert: rollback to ${hash.slice(0, 7)}`)) {
+        log('[ERROR] revert commit failed'); return false;
       }
     }
 
