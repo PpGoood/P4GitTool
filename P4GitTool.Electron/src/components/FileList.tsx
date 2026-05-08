@@ -28,10 +28,18 @@ export const FileList: React.FC = () => {
   const runSubmitPrepare = useAppStore((s) => s.runSubmitPrepare);
   const runInit = useAppStore((s) => s.runInit);
   const isLoading = useAppStore((s) => s.isLoading);
+  const loadingOp = useAppStore((s) => s.loadingOp);
+  const toggleLog = useAppStore((s) => s.toggleLog);
   const notInited = ws.status && !ws.status.gitInited;
+  const isIniting = isLoading && loadingOp === 'init';
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
+
+  const handleInit = async () => {
+    toggleLog(); // 展开日志面板，让用户看到进度
+    await runInit();
+  };
 
   return (
     <div className="w-[220px] bg-[#252526] border-r border-[#1a1a1a] flex flex-col flex-shrink-0">
@@ -58,12 +66,15 @@ export const FileList: React.FC = () => {
           <div className="text-center text-[#666] text-[11px] py-8 px-3">
             <div className="mb-3">工作区尚未初始化</div>
             <button
-              onClick={() => runInit()}
-              disabled={isLoading}
+              onClick={handleInit}
+              disabled={isIniting}
               className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold px-4 py-2 rounded"
             >
-              初始化工作区
+              {isIniting ? '初始化中...' : '初始化工作区'}
             </button>
+            {isIniting && (
+              <div className="mt-2 text-[#569cd6] text-[10px]">请查看底部日志面板</div>
+            )}
           </div>
         )}
         {currentStream && !notInited && ws.changes.length === 0 && (

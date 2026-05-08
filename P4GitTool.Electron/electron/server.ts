@@ -37,6 +37,11 @@ async function findAvailablePort(preferred = 3001): Promise<number> {
 let watcher: WorkspaceWatcher | null = null;
 const watchedStreams = new Set<string>();
 
+// 全局可变 rootDir，配置保存后可动态更新
+let currentRootDir = '';
+
+export function getRootDir(): string { return currentRootDir; }
+
 /**
  * 启动已配置 stream 的文件监听。
  * 在首次启动和配置保存后调用。
@@ -77,15 +82,13 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   setConfigPath(configFilePath);
 
   const cfg = loadConfig();
-  const rootDir = cfg.workspaces_dir
-    ? cfg.workspaces_dir
-    : defaultRootDir;
+  currentRootDir = cfg.workspaces_dir ? cfg.workspaces_dir : defaultRootDir;
 
   // 确保实际工作目录存在
-  fs.mkdirSync(rootDir, { recursive: true });
+  fs.mkdirSync(currentRootDir, { recursive: true });
 
   console.log('[P4Git] defaultRootDir:', defaultRootDir);
-  console.log('[P4Git] rootDir:', rootDir);
+  console.log('[P4Git] rootDir:', currentRootDir);
   console.log('[P4Git] config path:', configFilePath);
 
   // 装配 Express
@@ -106,20 +109,32 @@ export async function startServer(defaultRootDir: string): Promise<number> {
     next();
   });
 
-  // /api 前缀
+  // 配置保存后更新 rootDir 并刷新 watcher
+  const onConfigChanged = async () => {
+    const newCfg = loadConfig();
+    const newRootDir = newCfg.workspaces_dir ? newCfg.workspaces_dir : defaultRootDir;
+    if (newRootDir !== currentRootDir) {
+      console.log('[P4Git] rootDir 更新:', newRootDir);
+      currentRootDir = newRootDir;
+      fs.mkdirSync(currentRootDir, { recursive: true });
+    }
+    await refreshWatcher(currentRootDir);
+  };
+
+  // /api 前缀（路由通过 getRootDir() 动态获取 rootDir）
   app.use('/api', eventsRouter);
-  app.use('/api', createConfigRouter(async () => { await refreshWatcher(rootDir); }));
-  app.use('/api', createWorkspaceRouter(rootDir));
-  app.use('/api', createOperationsRouter(rootDir));
-  app.use('/api', createDiscardRouter(rootDir));
-  app.use('/api', createRollbackRouter(rootDir));
+  app.use('/api', createConfigRouter(onConfigChanged));
+  app.use('/api', createWorkspaceRouter(currentRootDir));
+  app.use('/api', createOperationsRouter(currentRootDir));
+  app.use('/api', createDiscardRouter(currentRootDir));
+  app.use('/api', createRollbackRouter(currentRootDir));
 
   // 文件监听 → 总线事件
   watcher = new WorkspaceWatcher({ debounceMs: 500 });
   watcher.on('changed', (streamName) => {
     eventBus.emit({ type: 'files-changed', stream: streamName });
   });
-  await refreshWatcher(rootDir);
+  await refreshWatcher(currentRootDir);
 
   return new Promise<number>((resolve) => {
     app.listen(port, '127.0.0.1', () => {

@@ -5,6 +5,7 @@ import { DiffHunk } from '../api/client';
 
 export const DiffPanel: React.FC = () => {
   const ws = useCurrentWorkspace();
+  const isLoading = useAppStore((s) => s.isLoading);
   const runDiscardHunk = useAppStore((s) => s.runDiscardHunk);
   const runDiscardLine = useAppStore((s) => s.runDiscardLine);
 
@@ -16,10 +17,18 @@ export const DiffPanel: React.FC = () => {
     );
   }
 
+  // 选中了文件但 diff 还是 null：区分加载中和无内容
   if (!ws.diff) {
+    if (isLoading) {
+      return (
+        <div className="flex-1 flex items-center justify-center text-[#555] text-[12px]">
+          加载中...
+        </div>
+      );
+    }
     return (
       <div className="flex-1 flex items-center justify-center text-[#555] text-[12px]">
-        加载中...
+        无法加载 diff（可能是新增文件或工作区未初始化）
       </div>
     );
   }
