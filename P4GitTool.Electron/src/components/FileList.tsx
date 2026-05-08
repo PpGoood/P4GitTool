@@ -26,7 +26,9 @@ export const FileList: React.FC = () => {
   const runDiscardFile = useAppStore((s) => s.runDiscardFile);
   const runPull = useAppStore((s) => s.runPull);
   const runSubmitPrepare = useAppStore((s) => s.runSubmitPrepare);
+  const runInit = useAppStore((s) => s.runInit);
   const isLoading = useAppStore((s) => s.isLoading);
+  const notInited = ws.status && !ws.status.gitInited;
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
@@ -47,7 +49,24 @@ export const FileList: React.FC = () => {
 
       {/* Files */}
       <div className="flex-1 overflow-y-auto">
-        {ws.changes.length === 0 && (
+        {!currentStream && (
+          <div className="text-center text-[#666] text-[11px] py-8 px-3">
+            请点击右上角 ⚙ 配置工作区
+          </div>
+        )}
+        {currentStream && notInited && (
+          <div className="text-center text-[#666] text-[11px] py-8 px-3">
+            <div className="mb-3">工作区尚未初始化</div>
+            <button
+              onClick={() => runInit()}
+              disabled={isLoading}
+              className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold px-4 py-2 rounded"
+            >
+              初始化工作区
+            </button>
+          </div>
+        )}
+        {currentStream && !notInited && ws.changes.length === 0 && (
           <div className="text-center text-[#666] text-[11px] py-8">无改动文件</div>
         )}
         {ws.changes.map((f) => {

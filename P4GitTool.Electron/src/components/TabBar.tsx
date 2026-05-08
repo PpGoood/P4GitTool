@@ -16,11 +16,14 @@ export const TabBar: React.FC<Props> = ({ onOpenConfig }) => {
   const streams = config?.streams ?? [];
 
   return (
-    <div className="h-[38px] bg-[#2d2d2d] flex items-center px-3 gap-2 border-b border-[#141414] select-none">
-      <span className="text-[#007acc] text-[13px] font-bold">⬡ P4Git</span>
+    <div
+      className="h-[38px] bg-[#2d2d2d] flex items-center px-3 gap-2 border-b border-[#141414] select-none"
+      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+    >
+      <span className="text-[#007acc] text-[13px] font-bold" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>⬡ P4Git</span>
       <div className="w-px h-4 bg-[#444] mx-1" />
 
-      <div className="flex items-stretch h-full">
+      <div className="flex items-stretch h-full" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {streams.map((s) => {
           const active = s.name === currentStream;
           const count = workspaces[s.name]?.changes.length ?? 0;
@@ -46,7 +49,7 @@ export const TabBar: React.FC<Props> = ({ onOpenConfig }) => {
         })}
       </div>
 
-      <div className="ml-auto flex gap-1">
+      <div className="ml-auto flex gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={() => currentStream && refreshWorkspace(currentStream)}
           title="刷新"
