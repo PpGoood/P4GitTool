@@ -94,25 +94,27 @@ export const Timeline: React.FC = () => {
                     <div
                       className={`rounded-full border-2 transition-transform group-hover:scale-[1.35] ${isCurrent ? 'w-4 h-4' : 'w-3 h-3'}`}
                       style={{
-                        borderColor: isSelected ? '#fff' : isCurrent ? '#fff' : c.border,
-                        background: c.bg,
+                        borderColor: isCurrent ? '#c586c0' : isSelected ? '#569cd6' : c.border,
+                        background: isCurrent ? '#c586c022' : c.bg,
                         boxShadow: isCurrent
-                          ? `0 0 0 2px #fff4, 0 0 8px ${c.glow ?? c.border}88`
+                          ? `0 0 8px rgba(197,134,192,0.5)`
                           : isSelected
                           ? `0 0 0 2px #569cd644`
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
-                    <div className="flex-1 h-[2px] bg-[#3a3a3a]" />
+                    <div className={`flex-1 h-[2px] ${isCurrent && ws.changes.length === 0 ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                   </div>
                   <div className="mt-2 text-center w-[84px]">
                     <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#fff]' : isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
+                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#c586c0]' : isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
                       {shortMsg(s.message)}
                     </div>
                     <div
                       className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
-                      style={{ background: c.tagBg, color: c.tagText }}
+                      style={isCurrent
+                        ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
+                        : { background: c.tagBg, color: c.tagText }}
                     >
                       {isCurrent ? '当前' : c.label}
                     </div>
