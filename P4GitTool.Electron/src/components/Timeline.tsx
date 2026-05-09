@@ -27,6 +27,9 @@ function shortMsg(msg: string): string {
   return stripped.length > 18 ? stripped.slice(0, 17) + '…' : stripped;
 }
 
+// 节点圆心距容器顶部的距离（px），用于对齐横线
+const NODE_TOP = 32;
+
 export const Timeline: React.FC = () => {
   const ws = useCurrentWorkspace();
   const collapsed = useAppStore((s) => s.timelineCollapsed);
@@ -69,65 +72,88 @@ export const Timeline: React.FC = () => {
           className="h-[110px] bg-[#1e1e1e] overflow-x-auto overflow-y-hidden border-b border-[#333]"
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#444 #1e1e1e' }}
         >
-          <div className="flex items-start h-full px-6" style={{ minWidth: 'max-content' }}>
-            {ws.snapshots.map((s, i) => {
-              const c = COLORS[s.kind];
-              const isFirst = i === 0;
-              const isCurrent = s.hash === headHash;
-              const isSelected = viewingNode?.hash === s.hash;
+          <div
+            className="relative h-full"
+            style={{ minWidth: `${Math.max(ws.snapshots.length, 1) * 88 + 48}px` }}
+          >
+            {/* 贯穿所有节点的横线，绝对定位 */}
+            {ws.snapshots.length > 1 && (
+              <div
+                className="absolute bg-[#3a3a3a]"
+                style={{
+                  height: '2px',
+                  top: `${NODE_TOP}px`,
+                  left: '44px',
+                  right: '44px',
+                }}
+              />
+            )}
 
-              return (
-                <button
-                  key={s.hash}
-                  onClick={() => !isCurrent && viewNode(s)}
-                  disabled={isCurrent}
-                  title={isCurrent ? '当前所在节点' : '点击查看此节点的改动'}
-                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
-                >
-                  <div className="flex items-center w-full">
-                    <div className={`flex-1 h-[2px] ${isFirst ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
+            {/* 节点列表 */}
+            <div className="absolute inset-0 flex items-start px-6">
+              {ws.snapshots.map((s) => {
+                const c = COLORS[s.kind];
+                const isCurrent = s.hash === headHash;
+                const isSelected = viewingNode?.hash === s.hash;
+
+                return (
+                  <button
+                    key={s.hash}
+                    onClick={() => !isCurrent && viewNode(s)}
+                    disabled={isCurrent}
+                    title={isCurrent ? '当前所在节点' : '点击查看此节点的改动'}
+                    className={`flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
+                    style={{ paddingTop: `${NODE_TOP - 6}px` }}
+                  >
+                    {/* 节点：圆形（历史）或正方形（当前） */}
                     <div
-                      className={`border-2 transition-transform ${isCurrent ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full group-hover:scale-[1.2]'}`}
+                      className={`border-2 transition-transform ${
+                        isCurrent
+                          ? 'w-4 h-4 rounded-[3px]'
+                          : 'w-3 h-3 rounded-full group-hover:scale-[1.3]'
+                      }`}
                       style={{
                         borderColor: isCurrent
                           ? (ws.changes.length > 0 ? '#c586c0' : '#666')
                           : isSelected ? '#569cd6' : c.border,
                         background: isCurrent
-                          ? (ws.changes.length > 0 ? '#c586c033' : '#33333355')
+                          ? (ws.changes.length > 0 ? '#c586c033' : '#1e1e1e')
                           : c.bg,
                         boxShadow: isCurrent && ws.changes.length > 0
-                          ? `0 0 8px rgba(197,134,192,0.5)`
+                          ? '0 0 8px rgba(197,134,192,0.5)'
                           : isSelected
-                          ? `0 0 0 2px #569cd644`
+                          ? '0 0 0 2px #569cd644'
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
-                    <div className={`flex-1 h-[2px] ${isCurrent ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
-                  </div>
-                  <div className="mt-2 text-center w-[84px]">
-                    <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                    <div className={`text-[10px] truncate ${
-                      isCurrent
-                        ? (ws.changes.length > 0 ? 'text-[#c586c0]' : 'text-[#888]')
-                        : isSelected ? 'text-[#569cd6]' : 'text-[#999]'
-                    }`}>
-                      {shortMsg(s.message)}
-                    </div>
-                    <div
-                      className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
-                      style={isCurrent
-                        ? ws.changes.length > 0
-                          ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
-                          : { background: '#33333355', color: '#666' }
-                        : { background: c.tagBg, color: c.tagText }}
-                    >
-                      {isCurrent ? (ws.changes.length > 0 ? `${ws.changes.length} 个改动` : '当前') : c.label}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
 
+                    {/* 标签 */}
+                    <div className="mt-2 text-center w-[84px]">
+                      <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
+                      <div className={`text-[10px] truncate ${
+                        isCurrent
+                          ? (ws.changes.length > 0 ? 'text-[#c586c0]' : 'text-[#888]')
+                          : isSelected ? 'text-[#569cd6]' : 'text-[#999]'
+                      }`}>
+                        {shortMsg(s.message)}
+                      </div>
+                      <div
+                        className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
+                        style={isCurrent
+                          ? ws.changes.length > 0
+                            ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
+                            : { background: '#33333355', color: '#666' }
+                          : { background: c.tagBg, color: c.tagText }}
+                      >
+                        {isCurrent
+                          ? (ws.changes.length > 0 ? `${ws.changes.length} 个改动` : '当前')
+                          : c.label}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
