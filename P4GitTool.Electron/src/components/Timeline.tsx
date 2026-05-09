@@ -79,20 +79,15 @@ export const Timeline: React.FC = () => {
               return (
                 <button
                   key={s.hash}
-                  onClick={() => {
-                    if (isCurrent) {
-                      exitNodeView();
-                    } else {
-                      viewNode(s);
-                    }
-                  }}
-                  title={isCurrent ? '当前所在节点，点击退出历史查看' : '点击查看此节点的改动'}
-                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative group`}
+                  onClick={() => !isCurrent && viewNode(s)}
+                  disabled={isCurrent}
+                  title={isCurrent ? '当前所在节点' : '点击查看此节点的改动'}
+                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
                 >
                   <div className="flex items-center w-full">
                     <div className={`flex-1 h-[2px] ${isFirst ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                     <div
-                      className={`border-2 transition-transform group-hover:scale-[1.2] ${isCurrent ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full'}`}
+                      className={`border-2 transition-transform ${isCurrent ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full group-hover:scale-[1.2]'}`}
                       style={{
                         borderColor: isCurrent
                           ? (ws.changes.length > 0 ? '#c586c0' : '#666')
@@ -107,7 +102,7 @@ export const Timeline: React.FC = () => {
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
-                    <div className="flex-1 h-[2px] bg-transparent" />
+                    <div className={`flex-1 h-[2px] ${isCurrent ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                   </div>
                   <div className="mt-2 text-center w-[84px]">
                     <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
