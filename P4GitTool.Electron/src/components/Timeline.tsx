@@ -92,70 +92,47 @@ export const Timeline: React.FC = () => {
                   <div className="flex items-center w-full">
                     <div className={`flex-1 h-[2px] ${isFirst ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                     <div
-                      className={`rounded-full border-2 transition-transform group-hover:scale-[1.35] ${isCurrent ? 'w-4 h-4' : 'w-3 h-3'}`}
+                      className={`border-2 transition-transform group-hover:scale-[1.2] ${isCurrent ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full'}`}
                       style={{
-                        borderColor: isCurrent ? '#c586c0' : isSelected ? '#569cd6' : c.border,
-                        background: isCurrent ? '#c586c022' : c.bg,
-                        boxShadow: isCurrent
+                        borderColor: isCurrent
+                          ? (ws.changes.length > 0 ? '#c586c0' : '#666')
+                          : isSelected ? '#569cd6' : c.border,
+                        background: isCurrent
+                          ? (ws.changes.length > 0 ? '#c586c033' : '#33333355')
+                          : c.bg,
+                        boxShadow: isCurrent && ws.changes.length > 0
                           ? `0 0 8px rgba(197,134,192,0.5)`
                           : isSelected
                           ? `0 0 0 2px #569cd644`
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
-                    <div className={`flex-1 h-[2px] ${isCurrent && ws.changes.length === 0 ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
+                    <div className="flex-1 h-[2px] bg-transparent" />
                   </div>
                   <div className="mt-2 text-center w-[84px]">
                     <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#c586c0]' : isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
+                    <div className={`text-[10px] truncate ${
+                      isCurrent
+                        ? (ws.changes.length > 0 ? 'text-[#c586c0]' : 'text-[#888]')
+                        : isSelected ? 'text-[#569cd6]' : 'text-[#999]'
+                    }`}>
                       {shortMsg(s.message)}
                     </div>
                     <div
                       className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
                       style={isCurrent
-                        ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
+                        ? ws.changes.length > 0
+                          ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
+                          : { background: '#33333355', color: '#666' }
                         : { background: c.tagBg, color: c.tagText }}
                     >
-                      {isCurrent ? '当前' : c.label}
+                      {isCurrent ? (ws.changes.length > 0 ? `${ws.changes.length} 个改动` : '当前') : c.label}
                     </div>
                   </div>
                 </button>
               );
             })}
 
-            {/* 当前工作区节点（紫色）：有未提交改动时显示，点击退出历史查看 */}
-            {ws.changes.length > 0 && (
-              <button
-                onClick={exitNodeView}
-                title={isViewing ? '点击退出历史查看，回到当前改动' : '当前工作区'}
-                className="flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] group"
-              >
-                <div className="flex items-center w-full">
-                  <div className="flex-1 h-[2px] bg-[#3a3a3a]" />
-                  <div
-                    className="w-3.5 h-3.5 rounded-full border-2 transition-transform group-hover:scale-[1.35]"
-                    style={{
-                      borderColor: '#c586c0',
-                      background: '#c586c022',
-                      boxShadow: '0 0 8px rgba(197,134,192,0.35)',
-                    }}
-                  />
-                  <div className="flex-1 h-[2px] bg-transparent" />
-                </div>
-                <div className="mt-2 text-center w-[84px]">
-                  <div className="text-[9px] text-[#555] mb-0.5">现在</div>
-                  <div className="text-[10px] text-[#999] truncate">
-                    {ws.changes.length} 个未提交
-                  </div>
-                  <div
-                    className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5 border border-[#c586c044]"
-                    style={{ background: '#c586c022', color: '#c586c0' }}
-                  >
-                    工作区
-                  </div>
-                </div>
-              </button>
-            )}
           </div>
         </div>
       )}
