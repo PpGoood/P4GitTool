@@ -80,18 +80,6 @@ export const DiffPanel: React.FC = () => {
                 </span>
                 <span className="w-3 select-none">{sign}</span>
                 <span className="flex-1 whitespace-pre">{l.content}</span>
-                {!isCtx && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm('撤销这一行改动？')) return;
-                      await runDiscardLine(ws.selectedFile!, hunkIndex, lineIndex);
-                    }}
-                    className="opacity-0 group-hover/line:opacity-100 transition-opacity text-[9px] text-[#888] hover:text-[#f48771]"
-                    title="撤销单行"
-                  >
-                    ✕
-                  </button>
-                )}
               </div>
             );
           })}

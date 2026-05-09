@@ -152,7 +152,10 @@ export async function diffFile(repo: string, filepath: string, base: string): Pr
  * 反向应用一个 patch（通过 stdin 传入），用于撤销某个 hunk / line。
  */
 export async function applyReversePatch(repo: string, patch: string): Promise<boolean> {
-  const { code } = await run('git', ['apply', '--reverse', '--whitespace=nowarn', '-'], repo, true, patch);
+  const { code, stderr } = await run('git', ['apply', '--reverse', '--whitespace=nowarn', '-'], repo, true, patch);
+  if (code !== 0) {
+    console.error(`[git apply --reverse] failed:\npatch:\n${patch}\nstderr:\n${stderr}`);
+  }
   return code === 0;
 }
 
