@@ -32,8 +32,12 @@ export const Timeline: React.FC = () => {
   const ws = useCurrentWorkspace();
   const collapsed = useAppStore((s) => s.timelineCollapsed);
   const toggle = useAppStore((s) => s.toggleTimeline);
+  const isDetached = useAppStore((s) => s.isDetached);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [rollbackTarget, setRollbackTarget] = useState<SnapshotEntry | null>(null);
+
+  // 当前 HEAD hash，用于高亮当前节点
+  const headHash = ws.status?.headHash ?? '';
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -49,7 +53,11 @@ export const Timeline: React.FC = () => {
         <span className="text-[10px] font-bold text-[#707070] tracking-wider uppercase">
           ⏱ 快照时间线
         </span>
-        {!collapsed && <span className="text-[10px] text-[#555]">· 点击节点可回滚</span>}
+        {!collapsed && (
+          <span className="text-[10px] text-[#555]">
+            {isDetached ? '· 历史查看模式' : '· 点击节点查看历史'}
+          </span>
+        )}
         <span className="ml-auto text-[#555]">
           {collapsed ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </span>
@@ -65,27 +73,32 @@ export const Timeline: React.FC = () => {
             {ws.snapshots.map((s, i) => {
               const c = COLORS[s.kind];
               const isFirst = i === 0;
+              const isCurrent = s.hash === headHash; // 当前 HEAD 节点
               return (
                 <button
                   key={s.hash}
-                  onClick={() => setRollbackTarget(s)}
-                  className="flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative group"
+                  onClick={() => !isCurrent && setRollbackTarget(s)}
+                  disabled={isCurrent}
+                  title={isCurrent ? '当前所在节点' : '点击查看此节点'}
+                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
                 >
                   <div className="flex items-center w-full">
                     <div className={`flex-1 h-[2px] ${isFirst ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                     <div
-                      className="w-3 h-3 rounded-full border-2 transition-transform group-hover:scale-[1.35]"
+                      className={`rounded-full border-2 transition-transform ${isCurrent ? 'w-4 h-4' : 'w-3 h-3 group-hover:scale-[1.35]'}`}
                       style={{
-                        borderColor: c.border,
-                        background: c.bg,
-                        boxShadow: c.glow ? `0 0 6px ${c.glow}` : undefined,
+                        borderColor: isCurrent ? '#fff' : c.border,
+                        background: isCurrent ? c.bg : c.bg,
+                        boxShadow: isCurrent
+                          ? `0 0 0 2px #fff4, 0 0 8px ${c.glow ?? c.border}88`
+                          : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
                     <div className="flex-1 h-[2px] bg-[#3a3a3a]" />
                   </div>
                   <div className="mt-2 text-center w-[84px]">
                     <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                    <div className="text-[10px] text-[#999] truncate">{shortMsg(s.message)}</div>
+                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#fff]' : 'text-[#999]'}`}>{shortMsg(s.message)}</div>
                     <div
                       className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
                       style={{ background: c.tagBg, color: c.tagText }}

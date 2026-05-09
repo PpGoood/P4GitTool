@@ -437,12 +437,22 @@ export async function getStreamStatus(rootDir: string, stream: string) {
   const hasGitDir = fs.existsSync(path.join(repo, '.git'));
   const sourceJunc = fs.existsSync(path.join(repo, 'Source'));
 
-  // gitInited = .git 存在 且 stream 分支已创建（说明 init 已完整完成）
   const gitInited = hasGitDir && await git.branchExists(repo, stream);
   const branch = hasGitDir ? await git.currentBranch(repo) : '';
   const branches = hasGitDir ? await git.listBranches(repo) : [];
   const pendingSubmit = fs.existsSync(path.join(rootDir, '.p4git_pending.yaml'));
-  return { gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit };
+
+  // 当前 HEAD 的 hash，用于时间线高亮当前节点
+  let headHash = '';
+  if (hasGitDir) {
+    const { stdout } = await run('git', ['rev-parse', 'HEAD'], repo, true);
+    headHash = stdout.trim();
+  }
+
+  // 是否处于 detached HEAD（查看历史节点模式）
+  const isDetached = hasGitDir && branch === 'HEAD';
+
+  return { gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit, headHash, isDetached };
 }
 
 // -------------------------------------------------------

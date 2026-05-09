@@ -47,6 +47,8 @@ export interface StreamStatus {
   branch: string;
   branches: string[];
   pendingSubmit: boolean;
+  headHash: string;
+  isDetached: boolean;
 }
 
 export interface FileChange {

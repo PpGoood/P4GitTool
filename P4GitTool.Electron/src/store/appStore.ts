@@ -146,6 +146,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const status = await api.getStatus(stream);
       get().patchWorkspace(stream, { status });
+      // 从 status 同步 isDetached 状态
+      if (stream === get().currentStream) {
+        set({ isDetached: status.isDetached ?? false });
+      }
     } catch {}
   },
 
