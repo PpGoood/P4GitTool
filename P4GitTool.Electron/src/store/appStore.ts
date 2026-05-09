@@ -344,8 +344,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isLoading: false, loadingOp: null });
     }
   },
-    }
-  },
 
   runReturnLatest: async () => {
     const s = get().currentStream;

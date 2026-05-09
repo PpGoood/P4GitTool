@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { SnapshotDialog } from './SnapshotDialog';
+import { ConfirmDialog } from './ConfirmDialog';
 import { FileChange } from '../api/client';
 
 interface ContextMenu {
@@ -74,6 +75,8 @@ export const FileList: React.FC = () => {
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [checkoutConfirm, setCheckoutConfirm] = useState(false);
+  const [discardFileConfirm, setDiscardFileConfirm] = useState<string | null>(null);
 
   const handleInit = async () => {
     toggleLog();
@@ -105,11 +108,7 @@ export const FileList: React.FC = () => {
           {/* Checkout 按钮：只在浏览的不是当前 HEAD 节点时显示 */}
           {!isDetached && viewingNode && viewingNode.hash !== ws.status?.headHash && (
             <button
-              onClick={async () => {
-                if (!viewingNode) return;
-                if (!confirm(`切换到节点 ${viewingNode.hash.slice(0, 7)}？\n工作区文件将变为该节点状态，请勿修改文件，验证完成后点击"回到最新"。`)) return;
-                await runCheckoutNode(viewingNode.hash);
-              }}
+              onClick={() => setCheckoutConfirm(true)}
               disabled={isLoading || ws.changes.length > 0}
               title={ws.changes.length > 0 ? '请先提交或丢弃当前改动' : '切换工作区到此节点验证问题'}
               className="w-full bg-[#569cd622] hover:bg-[#569cd633] disabled:opacity-40 disabled:cursor-not-allowed text-[#569cd6] text-[11px] py-1.5 rounded border border-[#569cd644]"
@@ -219,19 +218,51 @@ export const FileList: React.FC = () => {
             style={{ left: menu.x, top: menu.y }}
           >
             <button
-              onClick={async () => {
-                await runDiscardFile(menu.filepath);
+              onClick={() => {
+                setDiscardFileConfirm(menu.filepath);
                 setMenu(null);
               }}
               className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
             >
-              还原此文件到 P4 版本
+              还原此文件到上个快照
             </button>
           </div>
         </>
       )}
 
       <SnapshotDialog open={snapshotOpen} onClose={() => setSnapshotOpen(false)} />
+
+      {/* Checkout 确认弹窗 */}
+      <ConfirmDialog
+        open={checkoutConfirm}
+        title="Checkout 到此节点"
+        message={`切换工作区到节点 ${viewingNode?.hash.slice(0, 7) ?? ''}`}
+        detail="工作区文件将变为该节点状态，验证完成后点击底部状态栏的「回到最新」。"
+        confirmText="Checkout"
+        confirmVariant="warning"
+        disabled={ws.changes.length > 0}
+        disabledReason={`当前有 ${ws.changes.length} 个未提交改动，请先提交快照或丢弃改动`}
+        onConfirm={async () => {
+          setCheckoutConfirm(false);
+          if (viewingNode) await runCheckoutNode(viewingNode.hash);
+        }}
+        onClose={() => setCheckoutConfirm(false)}
+      />
+
+      {/* 还原文件确认弹窗 */}
+      <ConfirmDialog
+        open={!!discardFileConfirm}
+        title="还原文件"
+        message={`还原 ${discardFileConfirm} 到上个快照的状态？`}
+        detail="此操作不可撤销，文件内容将恢复到上一个快照时的状态。"
+        confirmText="还原"
+        confirmVariant="danger"
+        onConfirm={async () => {
+          if (discardFileConfirm) await runDiscardFile(discardFileConfirm);
+          setDiscardFileConfirm(null);
+        }}
+        onClose={() => setDiscardFileConfirm(null)}
+      />
     </div>
   );
 };

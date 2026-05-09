@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { DiffFile, DiffHunk } from '../api/client';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export const DiffPanel: React.FC = () => {
   const ws = useCurrentWorkspace();
   const isLoading = useAppStore((s) => s.isLoading);
   const runDiscardHunk = useAppStore((s) => s.runDiscardHunk);
+
+  const [discardHunkTarget, setDiscardHunkTarget] = useState<{ filepath: string; hunkIndex: number } | null>(null);
 
   // 历史节点查看模式
   const viewingNode = useAppStore((s) => s.viewingNode);
@@ -51,10 +54,7 @@ export const DiffPanel: React.FC = () => {
           {/* 历史查看模式下不显示 Discard 按钮 */}
           {!isViewing && (
             <button
-              onClick={async () => {
-                if (!confirm('撤销这段改动？')) return;
-                await runDiscardHunk(ws.selectedFile!, hunkIndex);
-              }}
+              onClick={() => setDiscardHunkTarget({ filepath: ws.selectedFile!, hunkIndex })}
               className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-[10px] text-[#888] hover:text-[#f48771] px-2 py-0.5 rounded hover:bg-[#3c3c3c]"
             >
               <RotateCcw size={10} /> Discard hunk
@@ -114,6 +114,22 @@ export const DiffPanel: React.FC = () => {
           diff.hunks.map((h, i) => renderHunk(h, i))
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!discardHunkTarget}
+        title="撤销这段改动"
+        message="确认撤销这个 hunk 的改动？"
+        detail="此操作不可撤销，该段代码将恢复到上一个快照的状态。"
+        confirmText="撤销"
+        confirmVariant="danger"
+        onConfirm={async () => {
+          if (discardHunkTarget) {
+            await runDiscardHunk(discardHunkTarget.filepath, discardHunkTarget.hunkIndex);
+          }
+          setDiscardHunkTarget(null);
+        }}
+        onClose={() => setDiscardHunkTarget(null)}
+      />
     </div>
   );
 };
