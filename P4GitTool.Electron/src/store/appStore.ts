@@ -337,11 +337,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
         set({ isDetached: true });
-        await get().refreshStatus(s);
+        await get().refreshWorkspace(s);
       }
       return ok;
     } finally {
       set({ isLoading: false, loadingOp: null });
+    }
+  },
     }
   },
 
