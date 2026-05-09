@@ -38,12 +38,14 @@ export function createRollbackRouter(getRootDir: () => string): Router {
 
   // 回到最新工作分支
   router.post('/return-latest', async (req, res) => {
-    const { stream } = req.body ?? {};
+    const { stream, force = false } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     try {
-      const ok = await ops.returnToLatest(getRootDir(), stream, makeLogFn());
-      eventBus.emit({ type: 'op-done', op: 'return-latest', stream, ok });
-      res.json({ ok });
+      const result = await ops.returnToLatest(getRootDir(), stream, force, makeLogFn());
+      if (result.ok) {
+        eventBus.emit({ type: 'op-done', op: 'return-latest', stream, ok: true });
+      }
+      res.json(result);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

@@ -21,8 +21,6 @@ const App: React.FC = () => {
   const submitChangelist = useAppStore((s) => s.submitChangelist);
   const runSubmitConfirm = useAppStore((s) => s.runSubmitConfirm);
   const setSubmitPending = useAppStore((s) => s.setSubmitPending);
-  const isDetached = useAppStore((s) => s.isDetached);
-  const runReturnLatest = useAppStore((s) => s.runReturnLatest);
   const [configOpen, setConfigOpen] = useState(false);
 
   useEffect(() => {
@@ -67,19 +65,6 @@ const App: React.FC = () => {
             )}
             <p className="text-[#666] text-[10px]">请勿关闭窗口或重复点击</p>
           </div>
-        </div>
-      )}
-
-      {/* Detached HEAD 横幅 */}
-      {isDetached && (
-        <div className="bg-[#f4877122] border-b border-[#f4877144] px-4 py-2 flex items-center gap-3 text-[12px]">
-          <span className="text-[#f48771]">⚠ 历史查看模式：工作区已切换到历史节点，请勿修改文件</span>
-          <button
-            onClick={() => runReturnLatest()}
-            className="ml-auto bg-[#f48771] hover:bg-[#e07060] text-white px-3 py-1 rounded text-[11px] font-bold"
-          >
-            回到最新
-          </button>
         </div>
       )}
 

@@ -76,7 +76,7 @@ interface AppState {
   runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
   runRollback: (hash: string) => Promise<boolean>;
   runCheckoutNode: (hash: string) => Promise<boolean>;
-  runReturnLatest: () => Promise<boolean>;
+  runReturnLatest: (force?: boolean) => Promise<{ ok: boolean; hasChanges?: boolean; changes?: FileChange[] }>;
   // 历史节点查看
   viewNode: (snapshot: SnapshotEntry) => Promise<void>;
   viewNodeSelectFile: (filepath: string) => Promise<void>;
@@ -348,18 +348,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  runReturnLatest: async () => {
+  runReturnLatest: async (force = false) => {
     const s = get().currentStream;
-    if (!s) return false;
+    if (!s) return { ok: false } as any;
     set({ isLoading: true, loadingOp: 'return-latest' });
     try {
-      const { ok } = await api.returnLatest(s);
-      if (ok) {
+      const result = await api.returnLatest(s, force);
+      if (result.ok) {
         set({ isDetached: false });
         get().exitNodeView();
         await get().refreshWorkspace(s);
       }
-      return ok;
+      return result;
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

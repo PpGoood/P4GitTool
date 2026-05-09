@@ -645,21 +645,37 @@ export async function checkoutHistoryNode(
 
 /**
  * 回到最新工作分支（从 detached HEAD 回来）。
+ * - force=false：检测到改动就返回 hasChanges，不执行
+ * - force=true：强制 checkout，丢弃所有改动
  */
 export async function returnToLatest(
-  rootDir: string, stream: string, log: LogFn
-): Promise<boolean> {
+  rootDir: string, stream: string, force: boolean, log: LogFn
+): Promise<{ ok: boolean; hasChanges?: boolean; changes?: ChangedFile[] }> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
-  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
   const repo = repoPath(rootDir, stream);
   const queue = getQueue(repo);
   return queue.enqueue(async () => {
+    // 非强制：先检查是否有未提交改动
+    if (!force) {
+      if (!await git.gitCheckClean(repo)) {
+        const changes = await getChangedFiles(rootDir, stream);
+        return { ok: false, hasChanges: true, changes };
+      }
+    }
+
+    // 强制模式：丢弃所有改动
+    if (force) {
+      await run('git', ['checkout', '--', '.'], repo, true);
+      await run('git', ['clean', '-fd'], repo, true);
+    }
+
     const { code, stderr } = await run('git', ['checkout', stream], repo, true);
-    if (code !== 0) { log(`[ERROR] git checkout ${stream} 失败: ${stderr}`); return false; }
+    if (code !== 0) { log(`[ERROR] git checkout ${stream} 失败: ${stderr}`); return { ok: false }; }
     await p4.p4SyncKeep(cfg, stream);
     log('[OK] 已回到最新工作状态');
-    return true;
+    return { ok: true };
   });
 }
 

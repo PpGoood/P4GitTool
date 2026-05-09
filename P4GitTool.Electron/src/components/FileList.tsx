@@ -98,14 +98,17 @@ export const FileList: React.FC = () => {
               浏览历史节点
             </span>
           </div>
-          {/* 返回按钮 — 大一点方便点击 */}
-          <button
-            onClick={exitNodeView}
-            className="w-full bg-[#2a2d2e] hover:bg-[#3c3c3c] text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
-          >
-            ← 返回当前工作区
-          </button>
-          {/* Checkout 按钮：只在浏览的不是当前 HEAD 节点时显示 */}
+          {/* 返回按钮：非 detached 模式下显示，只是退出浏览。
+              detached 模式下的"返回"走状态栏的橙色按钮 */}
+          {!isDetached && (
+            <button
+              onClick={exitNodeView}
+              className="w-full bg-[#2a2d2e] hover:bg-[#3c3c3c] text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
+            >
+              ← 返回当前工作区
+            </button>
+          )}
+          {/* Checkout 按钮：只在非 detached 且浏览的不是当前 HEAD 节点时显示 */}
           {!isDetached && viewingNode && viewingNode.hash !== ws.status?.headHash && (
             <button
               onClick={() => setCheckoutConfirm(true)}

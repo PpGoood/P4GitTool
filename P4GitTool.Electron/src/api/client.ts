@@ -151,8 +151,8 @@ export const api = {
   // Checkout 到历史节点（detached HEAD，用于验证问题）
   checkoutNode: (stream: string, hash: string) =>
     post<{ ok: boolean }>('/checkout-node', { stream, hash }),
-  returnLatest: (stream: string) =>
-    post<{ ok: boolean }>('/return-latest', { stream }),
+  returnLatest: (stream: string, force = false) =>
+    post<{ ok: boolean; hasChanges?: boolean; changes?: FileChange[] }>('/return-latest', { stream, force }),
 
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
     const url = `${getBaseUrl()}/api/events`;
