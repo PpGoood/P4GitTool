@@ -108,8 +108,8 @@ export const FileList: React.FC = () => {
               ← 返回当前工作区
             </button>
           )}
-          {/* Checkout 按钮：只在非 detached 且浏览的不是当前 HEAD 节点时显示 */}
-          {!isDetached && viewingNode && viewingNode.hash !== ws.status?.headHash && (
+          {/* Checkout 按钮：浏览的节点不是当前 HEAD 时显示（包括 detached 下切到其他节点） */}
+          {viewingNode && viewingNode.hash !== ws.status?.headHash && (
             <button
               onClick={() => setCheckoutConfirm(true)}
               disabled={isLoading || ws.changes.length > 0}
