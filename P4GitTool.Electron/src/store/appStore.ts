@@ -273,7 +273,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get().currentStream;
     if (!s) return false;
     const { ok } = await api.discardFile(s, filepath);
-    if (ok) await get().refreshWorkspace(s);
+    if (ok) {
+      await get().refreshChanges(s);
+      // 如果当前选中的就是这个文件，清除 diff
+      const ws = get().workspaces[s];
+      if (ws?.selectedFile === filepath) {
+        get().patchWorkspace(s, { selectedFile: null, diff: null });
+      }
+    }
     return ok;
   },
 
@@ -281,7 +288,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get().currentStream;
     if (!s) return false;
     const { ok } = await api.discardHunk(s, filepath, hunkIndex);
-    if (ok) await get().refreshWorkspace(s);
+    if (ok) {
+      // 只刷新 changes 和当前文件的 diff，不刷新 snapshots/status
+      await Promise.all([
+        get().refreshChanges(s),
+        get().refreshDiff(s, filepath),
+      ]);
+    }
     return ok;
   },
 
