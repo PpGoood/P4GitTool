@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { SnapshotDialog } from './SnapshotDialog';
+import { FileChange } from '../api/client';
 
 interface ContextMenu {
   x: number; y: number; filepath: string;
@@ -19,6 +20,33 @@ function statusLetter(s: string): string {
   return c && c !== '?' ? c : 'A';
 }
 
+function FileItem({ f, active, onClick, onContextMenu }: {
+  f: FileChange;
+  active: boolean;
+  onClick: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const parts = f.path.split('/');
+  const name = parts[parts.length - 1];
+  const dir = parts.slice(0, -1).join('/');
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      className={`w-full text-left px-3 py-1.5 flex items-center gap-2 border-b border-[#2a2a2a]
+        ${active ? 'bg-[#2a2d2e] border-l-2 border-l-[#007acc]' : 'hover:bg-[#2a2a2a]'}`}
+    >
+      <span className={`text-[9px] font-bold w-3 ${statusClass(f.status)}`}>
+        {statusLetter(f.status)}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] text-[#ccc] truncate">{name}</div>
+        {dir && <div className="text-[10px] text-[#666] truncate">{dir}/</div>}
+      </div>
+    </button>
+  );
+}
+
 export const FileList: React.FC = () => {
   const ws = useCurrentWorkspace();
   const currentStream = useAppStore((s) => s.currentStream);
@@ -29,32 +57,70 @@ export const FileList: React.FC = () => {
   const runInit = useAppStore((s) => s.runInit);
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
-  const isDetached = useAppStore((s) => s.isDetached);
   const toggleLog = useAppStore((s) => s.toggleLog);
+
+  // 历史节点查看模式
+  const viewingNode = useAppStore((s) => s.viewingNode);
+  const viewingFiles = useAppStore((s) => s.viewingFiles);
+  const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
+  const viewNodeSelectFile = useAppStore((s) => s.viewNodeSelectFile);
+  const exitNodeView = useAppStore((s) => s.exitNodeView);
+
   const notInited = ws.status && !ws.status.gitInited;
   const isIniting = isLoading && loadingOp === 'init';
+  const isViewing = !!viewingNode;
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
 
   const handleInit = async () => {
-    toggleLog(); // 展开日志面板，让用户看到进度
+    toggleLog();
     await runInit();
   };
 
+  // 当前显示的文件列表和选中文件
+  const displayFiles = isViewing ? viewingFiles : ws.changes;
+  const selectedFile = isViewing ? viewingSelectedFile : ws.selectedFile;
+
   return (
     <div className="w-[220px] bg-[#252526] border-r border-[#1a1a1a] flex flex-col flex-shrink-0">
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-[#333] flex items-center gap-2">
-        <span className="text-[10px] font-bold text-[#707070] tracking-wider uppercase">
-          改动文件
-        </span>
-        {ws.changes.length > 0 && (
-          <span className="bg-[#007acc] text-white text-[9px] rounded-full px-1.5">
-            {ws.changes.length}
+
+      {/* Header：历史查看模式显示蓝色提示 */}
+      {isViewing ? (
+        <div className="px-3 py-2 border-b border-[#007acc44] bg-[#007acc18] flex items-center gap-2">
+          <span className="text-[10px] font-bold text-[#569cd6] tracking-wider uppercase flex-1">
+            历史节点 · 只读
           </span>
-        )}
-      </div>
+          <button
+            onClick={exitNodeView}
+            className="text-[10px] text-[#569cd6] hover:text-[#fff] underline"
+          >
+            返回
+          </button>
+        </div>
+      ) : (
+        <div className="px-3 py-2 border-b border-[#333] flex items-center gap-2">
+          <span className="text-[10px] font-bold text-[#707070] tracking-wider uppercase">
+            改动文件
+          </span>
+          {ws.changes.length > 0 && (
+            <span className="bg-[#007acc] text-white text-[9px] rounded-full px-1.5">
+              {ws.changes.length}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 历史节点信息 */}
+      {isViewing && viewingNode && (
+        <div className="px-3 py-1.5 border-b border-[#333] bg-[#1a1a1a]">
+          <div className="text-[9px] text-[#666]">
+            {new Date(viewingNode.date).toLocaleString('zh-CN')}
+          </div>
+          <div className="text-[10px] text-[#aaa] truncate">{viewingNode.message}</div>
+          <div className="text-[9px] text-[#555]">{viewingFiles.length} 个文件改动</div>
+        </div>
+      )}
 
       {/* Files */}
       <div className="flex-1 overflow-y-auto">
@@ -63,7 +129,7 @@ export const FileList: React.FC = () => {
             请点击右上角 ⚙ 配置工作区
           </div>
         )}
-        {currentStream && notInited && (
+        {currentStream && !isViewing && notInited && (
           <div className="text-center text-[#666] text-[11px] py-8 px-3">
             <div className="mb-3">工作区尚未初始化</div>
             <button
@@ -78,68 +144,54 @@ export const FileList: React.FC = () => {
             )}
           </div>
         )}
-        {currentStream && !notInited && ws.changes.length === 0 && (
-          <div className="text-center text-[#666] text-[11px] py-8">无改动文件</div>
+        {displayFiles.length === 0 && !notInited && currentStream && (
+          <div className="text-center text-[#666] text-[11px] py-8">
+            {isViewing ? '此节点无文件改动' : '无改动文件'}
+          </div>
         )}
-        {ws.changes.map((f) => {
-          const active = ws.selectedFile === f.path;
-          const parts = f.path.split('/');
-          const name = parts[parts.length - 1];
-          const dir = parts.slice(0, -1).join('/');
-          return (
-            <button
-              key={f.path}
-              onClick={() => selectFile(currentStream, f.path)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setMenu({ x: e.clientX, y: e.clientY, filepath: f.path });
-              }}
-              className={`
-                w-full text-left px-3 py-1.5 flex items-center gap-2 border-b border-[#2a2a2a]
-                ${active
-                  ? 'bg-[#2a2d2e] border-l-2 border-l-[#007acc]'
-                  : 'hover:bg-[#2a2a2a]'}
-              `}
-            >
-              <span className={`text-[9px] font-bold w-3 ${statusClass(f.status)}`}>
-                {statusLetter(f.status)}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-[#ccc] truncate">{name}</div>
-                {dir && <div className="text-[10px] text-[#666] truncate">{dir}/</div>}
-              </div>
-            </button>
-          );
-        })}
+        {displayFiles.map((f) => (
+          <FileItem
+            key={f.path}
+            f={f}
+            active={selectedFile === f.path}
+            onClick={() => isViewing ? viewNodeSelectFile(f.path) : selectFile(currentStream, f.path)}
+            onContextMenu={!isViewing ? (e) => {
+              e.preventDefault();
+              setMenu({ x: e.clientX, y: e.clientY, filepath: f.path });
+            } : undefined}
+          />
+        ))}
       </div>
 
-      {/* Actions */}
-      <div className="p-2.5 border-t border-[#333] flex flex-col gap-1.5">
-        <button
-          onClick={() => setSnapshotOpen(true)}
-          disabled={isLoading || isDetached || ws.changes.length === 0}
-          className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold py-1.5 rounded"
-        >
-          ⊙ 提交快照
-        </button>
-        <button
-          onClick={() => runSubmitPrepare()}
-          disabled={isLoading || isDetached}
-          className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
-        >
-          ↑ 提交到 P4
-        </button>
-        <button
-          onClick={() => runPull()}
-          disabled={isLoading || isDetached}
-          className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
-        >
-          ↓ P4 Sync
-        </button>
-      </div>
+      {/* Actions：历史查看模式下隐藏 */}
+      {!isViewing && (
+        <div className="p-2.5 border-t border-[#333] flex flex-col gap-1.5">
+          <button
+            onClick={() => setSnapshotOpen(true)}
+            disabled={isLoading || ws.changes.length === 0}
+            className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold py-1.5 rounded"
+          >
+            ⊙ 提交快照
+          </button>
+          <button
+            onClick={() => runSubmitPrepare()}
+            disabled={isLoading}
+            className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
+          >
+            ↑ 提交到 P4
+          </button>
+          <button
+            onClick={() => runPull()}
+            disabled={isLoading}
+            className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
+          >
+            ↓ P4 Sync
+          </button>
+        </div>
+      )}
 
-      {/* Context Menu */}
-      {menu && (
+      {/* Context Menu（只在非历史模式下显示） */}
+      {menu && !isViewing && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
           <div
@@ -159,10 +211,7 @@ export const FileList: React.FC = () => {
         </>
       )}
 
-      <SnapshotDialog
-        open={snapshotOpen}
-        onClose={() => setSnapshotOpen(false)}
-      />
+      <SnapshotDialog open={snapshotOpen} onClose={() => setSnapshotOpen(false)} />
     </div>
   );
 };

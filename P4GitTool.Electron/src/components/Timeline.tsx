@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { SnapshotEntry } from '../api/client';
-import { RollbackDialog } from './RollbackDialog';
 
 const COLORS: Record<SnapshotEntry['kind'], { border: string; bg: string; glow?: string; label: string; tagBg: string; tagText: string }> = {
   sync:           { border: '#007acc', bg: '#007acc33',                                label: 'P4 Sync',   tagBg: '#007acc22', tagText: '#007acc' },
@@ -21,10 +20,10 @@ function formatTime(iso: string): string {
 
 function shortMsg(msg: string): string {
   const stripped = msg
-    .replace(/^update: /, '')
-    .replace(/^sync 前自动保护.*/, 'sync 前保护')
+    .replace(/^sync: /, '')
+    .replace(/^sync-protect: /, '')
     .replace(/^submit: /, '')
-    .replace(/^revert: /, 'revert ');
+    .replace(/^init: /, '');
   return stripped.length > 18 ? stripped.slice(0, 17) + '…' : stripped;
 }
 
@@ -32,12 +31,13 @@ export const Timeline: React.FC = () => {
   const ws = useCurrentWorkspace();
   const collapsed = useAppStore((s) => s.timelineCollapsed);
   const toggle = useAppStore((s) => s.toggleTimeline);
-  const isDetached = useAppStore((s) => s.isDetached);
+  const viewNode = useAppStore((s) => s.viewNode);
+  const viewingNode = useAppStore((s) => s.viewingNode);
+  const exitNodeView = useAppStore((s) => s.exitNodeView);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [rollbackTarget, setRollbackTarget] = useState<SnapshotEntry | null>(null);
 
-  // 当前 HEAD hash，用于高亮当前节点
   const headHash = ws.status?.headHash ?? '';
+  const isViewing = !!viewingNode;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -55,7 +55,7 @@ export const Timeline: React.FC = () => {
         </span>
         {!collapsed && (
           <span className="text-[10px] text-[#555]">
-            {isDetached ? '· 历史查看模式' : '· 点击节点查看历史'}
+            {isViewing ? '· 历史查看中' : '· 点击节点查看历史'}
           </span>
         )}
         <span className="ml-auto text-[#555]">
@@ -73,24 +73,33 @@ export const Timeline: React.FC = () => {
             {ws.snapshots.map((s, i) => {
               const c = COLORS[s.kind];
               const isFirst = i === 0;
-              const isCurrent = s.hash === headHash; // 当前 HEAD 节点
+              const isCurrent = s.hash === headHash;
+              const isSelected = viewingNode?.hash === s.hash;
+
               return (
                 <button
                   key={s.hash}
-                  onClick={() => !isCurrent && setRollbackTarget(s)}
-                  disabled={isCurrent}
-                  title={isCurrent ? '当前所在节点' : '点击查看此节点'}
-                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
+                  onClick={() => {
+                    if (isCurrent) {
+                      exitNodeView();
+                    } else {
+                      viewNode(s);
+                    }
+                  }}
+                  title={isCurrent ? '当前所在节点，点击退出历史查看' : '点击查看此节点的改动'}
+                  className={`flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] relative group`}
                 >
                   <div className="flex items-center w-full">
                     <div className={`flex-1 h-[2px] ${isFirst ? 'bg-transparent' : 'bg-[#3a3a3a]'}`} />
                     <div
-                      className={`rounded-full border-2 transition-transform ${isCurrent ? 'w-4 h-4' : 'w-3 h-3 group-hover:scale-[1.35]'}`}
+                      className={`rounded-full border-2 transition-transform group-hover:scale-[1.35] ${isCurrent ? 'w-4 h-4' : 'w-3 h-3'}`}
                       style={{
-                        borderColor: isCurrent ? '#fff' : c.border,
-                        background: isCurrent ? c.bg : c.bg,
+                        borderColor: isSelected ? '#fff' : isCurrent ? '#fff' : c.border,
+                        background: c.bg,
                         boxShadow: isCurrent
                           ? `0 0 0 2px #fff4, 0 0 8px ${c.glow ?? c.border}88`
+                          : isSelected
+                          ? `0 0 0 2px #569cd644`
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
@@ -98,50 +107,56 @@ export const Timeline: React.FC = () => {
                   </div>
                   <div className="mt-2 text-center w-[84px]">
                     <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#fff]' : 'text-[#999]'}`}>{shortMsg(s.message)}</div>
+                    <div className={`text-[10px] truncate ${isCurrent ? 'text-[#fff]' : isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
+                      {shortMsg(s.message)}
+                    </div>
                     <div
                       className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
                       style={{ background: c.tagBg, color: c.tagText }}
                     >
-                      {c.label}
+                      {isCurrent ? '当前' : c.label}
                     </div>
                   </div>
                 </button>
               );
             })}
 
-            {/* 当前工作区节点（紫色） */}
-            <div className="flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px]">
-              <div className="flex items-center w-full">
-                <div className="flex-1 h-[2px] bg-[#3a3a3a]" />
-                <div
-                  className="w-3.5 h-3.5 rounded-full border-2"
-                  style={{
-                    borderColor: '#c586c0',
-                    background: '#c586c022',
-                    boxShadow: '0 0 8px rgba(197,134,192,0.35)',
-                  }}
-                />
-                <div className="flex-1 h-[2px] bg-transparent" />
-              </div>
-              <div className="mt-2 text-center w-[84px]">
-                <div className="text-[9px] text-[#555] mb-0.5">现在</div>
-                <div className="text-[10px] text-[#999] truncate">
-                  {ws.changes.length > 0 ? `${ws.changes.length} 个未提交` : '无改动'}
+            {/* 当前工作区节点（紫色）：有未提交改动时显示，点击退出历史查看 */}
+            {ws.changes.length > 0 && (
+              <button
+                onClick={exitNodeView}
+                title={isViewing ? '点击退出历史查看，回到当前改动' : '当前工作区'}
+                className="flex flex-col items-center flex-shrink-0 w-[88px] pt-[26px] group"
+              >
+                <div className="flex items-center w-full">
+                  <div className="flex-1 h-[2px] bg-[#3a3a3a]" />
+                  <div
+                    className="w-3.5 h-3.5 rounded-full border-2 transition-transform group-hover:scale-[1.35]"
+                    style={{
+                      borderColor: '#c586c0',
+                      background: '#c586c022',
+                      boxShadow: '0 0 8px rgba(197,134,192,0.35)',
+                    }}
+                  />
+                  <div className="flex-1 h-[2px] bg-transparent" />
                 </div>
-                <div
-                  className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5 border border-[#c586c044]"
-                  style={{ background: '#c586c022', color: '#c586c0' }}
-                >
-                  工作区
+                <div className="mt-2 text-center w-[84px]">
+                  <div className="text-[9px] text-[#555] mb-0.5">现在</div>
+                  <div className="text-[10px] text-[#999] truncate">
+                    {ws.changes.length} 个未提交
+                  </div>
+                  <div
+                    className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5 border border-[#c586c044]"
+                    style={{ background: '#c586c022', color: '#c586c0' }}
+                  >
+                    工作区
+                  </div>
                 </div>
-              </div>
-            </div>
+              </button>
+            )}
           </div>
         </div>
       )}
-
-      <RollbackDialog snapshot={rollbackTarget} onClose={() => setRollbackTarget(null)} />
     </>
   );
 };

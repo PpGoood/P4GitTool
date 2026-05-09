@@ -138,11 +138,15 @@ export const api = {
   discardLine: (stream: string, path: string, hunkIndex: number, lineIndex: number) =>
     post<{ ok: boolean }>('/discard-line', { stream, path, hunkIndex, lineIndex }),
 
-  rollback: (stream: string, hash: string) =>
-    post<{ ok: boolean }>('/checkout-node', { stream, hash }),
-
-  returnLatest: (stream: string) =>
-    post<{ ok: boolean }>('/return-latest', { stream }),
+  // 历史节点查看（纯读，不改变工作区）
+  getNodeFiles: (stream: string, hash: string, parentHash: string) =>
+    get<{ files: FileChange[] }>(
+      `/node-files?stream=${encodeURIComponent(stream)}&hash=${encodeURIComponent(hash)}&parentHash=${encodeURIComponent(parentHash)}`
+    ),
+  getNodeDiff: (stream: string, hash: string, parentHash: string, filepath: string) =>
+    get<{ diff: DiffFile | null }>(
+      `/node-diff?stream=${encodeURIComponent(stream)}&hash=${encodeURIComponent(hash)}&parentHash=${encodeURIComponent(parentHash)}&path=${encodeURIComponent(filepath)}`
+    ),
 
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
     const url = `${getBaseUrl()}/api/events`;

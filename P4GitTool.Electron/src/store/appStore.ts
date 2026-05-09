@@ -33,7 +33,11 @@ interface AppState {
   logCollapsed: boolean;
   isLoading: boolean;
   loadingOp: string | null;
-  isDetached: boolean;        // 当前处于历史查看模式（detached HEAD）
+  // 历史节点查看模式（纯读，不改变工作区）
+  viewingNode: SnapshotEntry | null;
+  viewingFiles: FileChange[];
+  viewingDiff: DiffFile | null;
+  viewingSelectedFile: string | null;
   submitPending: boolean;
   submitChangelist: number | null;
   setSubmitPending: (v: boolean, cl?: number) => void;
@@ -70,7 +74,10 @@ interface AppState {
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
   runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
   runRollback: (hash: string) => Promise<boolean>;
-  runReturnLatest: () => Promise<boolean>;
+  // 历史节点查看
+  viewNode: (snapshot: SnapshotEntry) => Promise<void>;
+  viewNodeSelectFile: (filepath: string) => Promise<void>;
+  exitNodeView: () => void;
 
   // 内部
   patchWorkspace: (stream: string, patch: Partial<WorkspaceState>) => void;
@@ -85,7 +92,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   logCollapsed: true,
   isLoading: false,
   loadingOp: null,
-  isDetached: false,
+  viewingNode: null,
+  viewingFiles: [],
+  viewingDiff: null,
+  viewingSelectedFile: null,
   submitPending: false,
   submitChangelist: null,
   setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
@@ -313,36 +323,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     return ok;
   },
 
-  runRollback: async (hash) => {
+  runRollback: async (_hash) => false, // 已废弃，保留接口兼容
+
+  viewNode: async (snapshot) => {
     const s = get().currentStream;
-    if (!s) return false;
-    set({ isLoading: true, loadingOp: 'rollback' });
+    if (!s) return;
+    set({ viewingNode: snapshot, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null });
     try {
-      const { ok } = await api.rollback(s, hash);
-      if (ok) {
-        set({ isDetached: true });
-        await get().refreshWorkspace(s);
-      }
-      return ok;
-    } finally {
-      set({ isLoading: false, loadingOp: null });
-    }
+      const { files } = await api.getNodeFiles(s, snapshot.hash, snapshot.parentHash);
+      set({ viewingFiles: files });
+    } catch {}
   },
 
-  runReturnLatest: async () => {
+  viewNodeSelectFile: async (filepath) => {
     const s = get().currentStream;
-    if (!s) return false;
-    set({ isLoading: true, loadingOp: 'return-latest' });
+    const node = get().viewingNode;
+    if (!s || !node) return;
+    set({ viewingSelectedFile: filepath, viewingDiff: null });
     try {
-      const { ok } = await api.returnLatest(s);
-      if (ok) {
-        set({ isDetached: false });
-        await get().refreshWorkspace(s);
-      }
-      return ok;
-    } finally {
-      set({ isLoading: false, loadingOp: null });
-    }
+      const { diff } = await api.getNodeDiff(s, node.hash, node.parentHash, filepath);
+      set({ viewingDiff: diff });
+    } catch {}
+  },
+
+  exitNodeView: () => {
+    set({ viewingNode: null, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null });
   },
 }));
 
