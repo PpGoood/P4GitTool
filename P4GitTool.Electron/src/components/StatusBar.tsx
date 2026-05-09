@@ -7,10 +7,16 @@ export const StatusBar: React.FC = () => {
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
   const isDetached = useAppStore((s) => s.isDetached);
+  const viewingNode = useAppStore((s) => s.viewingNode);
   const runReturnLatest = useAppStore((s) => s.runReturnLatest);
   const ws = useCurrentWorkspace();
 
   const [confirmReturn, setConfirmReturn] = useState<{ fileCount: number } | null>(null);
+
+  // 橙色状态栏：磁盘在 detached，且当前没浏览其他节点（或浏览的就是磁盘所在节点）
+  const showDetachedBar = isDetached && (
+    viewingNode === null || viewingNode.hash === ws.status?.headHash
+  );
 
   const handleReturn = async () => {
     if ((window as any).electron?.log) (window as any).electron.log('[StatusBar] handleReturn clicked');
@@ -34,8 +40,8 @@ export const StatusBar: React.FC = () => {
     ? new Date(lastSnapshot.date).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     : '无';
 
-  // detached 模式：状态栏变橙色，显示"返回工作区"按钮
-  if (isDetached) {
+  // detached 且在当前节点视图下：状态栏变橙色，显示"返回工作区"按钮
+  if (showDetachedBar) {
     return (
       <>
         <div className="h-6 bg-[#c17e1a] flex items-center px-3 gap-3 text-[11px] text-white flex-shrink-0">
