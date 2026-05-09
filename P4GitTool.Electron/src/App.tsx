@@ -47,6 +47,9 @@ const App: React.FC = () => {
                 {loadingOp === 'init' ? '正在初始化工作区...' :
                  loadingOp === 'pull' ? '正在同步 P4...' :
                  loadingOp === 'submit-prepare' ? '正在准备提交...' :
+                 loadingOp === 'view-node' ? '正在加载节点改动...' :
+                 loadingOp === 'checkout' ? '正在切换到历史节点...' :
+                 loadingOp === 'return-latest' ? '正在回到最新状态...' :
                  '处理中...'}
               </span>
             </div>

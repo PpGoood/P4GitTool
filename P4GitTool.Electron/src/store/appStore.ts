@@ -365,11 +365,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewNode: async (snapshot) => {
     const s = get().currentStream;
     if (!s) return;
-    set({ viewingNode: snapshot, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null });
+    set({ viewingNode: snapshot, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null, isLoading: true, loadingOp: 'view-node' });
     try {
       const { files } = await api.getNodeFiles(s, snapshot.hash, snapshot.parentHash);
       set({ viewingFiles: files });
-    } catch {}
+    } catch {} finally {
+      set({ isLoading: false, loadingOp: null });
+    }
   },
 
   viewNodeSelectFile: async (filepath) => {
