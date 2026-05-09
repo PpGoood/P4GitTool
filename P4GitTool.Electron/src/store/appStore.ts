@@ -337,7 +337,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
         set({ isDetached: true });
-        await get().refreshWorkspace(s);
+        // checkout 只是切换 HEAD，只需刷新 status 更新 isDetached
+        // snapshots 不变，changes 必然为空（刚 checkout 后工作区干净）
+        await get().refreshStatus(s);
+        get().patchWorkspace(s, { changes: [] });
       }
       return ok;
     } finally {

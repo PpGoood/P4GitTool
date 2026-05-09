@@ -634,9 +634,9 @@ export async function checkoutHistoryNode(
     log(`[PERF] git checkout: ${Date.now() - t0}ms`);
     if (code !== 0) { log(`[ERROR] git checkout 失败: ${stderr}`); return false; }
 
-    const t1 = Date.now();
-    await p4.p4SyncKeep(cfg, stream);
-    log(`[PERF] p4 sync -k: ${Date.now() - t1}ms`);
+    // 不在这里执行 p4 sync -k，它会扫描几万个文件非常慢
+    // 只在 returnToLatest 回到工作分支后执行一次对齐即可
+    // detached HEAD 只是浏览，用户不会做 P4 操作
 
     log(`[OK] 已切换到历史节点 ${hash.slice(0, 7)}，请勿修改文件`);
     return true;
