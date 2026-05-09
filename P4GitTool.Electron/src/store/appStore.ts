@@ -336,10 +336,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
-        set({ isDetached: true });
-        // 保持浏览模式：checkout 后依然显示该节点的改动 diff
-        // 只是顶部状态栏变橙色提醒"磁盘文件已切换"
+        // 从 status 同步 isDetached（如果 checkout 到 stream 最新，后端会切回分支，isDetached 会变 false）
         await get().refreshStatus(s);
+        // 如果 checkout 回了 stream 分支（退出 detached），退出浏览模式
+        if (!get().isDetached) {
+          get().exitNodeView();
+        }
         get().patchWorkspace(s, { changes: [] });
       }
       return ok;

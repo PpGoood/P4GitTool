@@ -94,12 +94,20 @@ export const Timeline: React.FC = () => {
               {ws.snapshots.map((s) => {
                 const c = COLORS[s.kind];
                 const isSelected = viewingNode?.hash === s.hash;
+                const isCurrent = s.hash === headHash;
 
                 return (
                   <button
                     key={s.hash}
-                    onClick={() => viewNode(s)}
-                    title="点击查看此节点的改动"
+                    onClick={() => {
+                      if (isCurrent) {
+                        // 点击当前 HEAD 节点：退出浏览
+                        exitNodeView();
+                      } else {
+                        viewNode(s);
+                      }
+                    }}
+                    title={isCurrent ? '当前所在节点' : '点击查看此节点的改动'}
                     className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 6}px` }}
                   >

@@ -630,16 +630,25 @@ export async function checkoutHistoryNode(
       return false;
     }
 
+    // 判断目标是否是 stream 分支最新：是则 checkout 分支（退出 detached），
+    // 否则 checkout hash（进入 detached）
+    const { stdout: streamHashOut } = await run(
+      'git', ['rev-parse', stream], repo, true
+    );
+    const streamHash = streamHashOut.trim();
+    const target = hash === streamHash ? stream : hash;
+
     const t0 = Date.now();
-    const { code, stderr } = await run('git', ['checkout', hash], repo, true);
-    log(`[PERF] git checkout: ${Date.now() - t0}ms`);
+    const { code, stderr } = await run('git', ['checkout', target], repo, true);
+    log(`[PERF] git checkout ${target === stream ? stream : target.slice(0, 7)}: ${Date.now() - t0}ms`);
     if (code !== 0) { log(`[ERROR] git checkout 失败: ${stderr}`); return false; }
 
-    // 不在这里执行 p4 sync -k，它会扫描几万个文件非常慢
-    // 只在 returnToLatest 回到工作分支后执行一次对齐即可
-    // detached HEAD 只是浏览，用户不会做 P4 操作
+    // 如果切回了 stream 分支，执行 p4 sync -k 对齐 have
+    if (target === stream) {
+      await p4.p4SyncKeep(cfg, stream);
+    }
 
-    log(`[OK] 已切换到历史节点 ${hash.slice(0, 7)}，请勿修改文件`);
+    log(`[OK] 已切换到 ${target === stream ? '最新工作分支' : `历史节点 ${hash.slice(0, 7)}`}`);
     return true;
   });
 }
