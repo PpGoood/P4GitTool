@@ -450,7 +450,8 @@ export async function getStreamStatus(rootDir: string, stream: string) {
   }
 
   // 是否处于 detached HEAD（查看历史节点模式）
-  const isDetached = hasGitDir && branch === 'HEAD';
+  // git branch --show-current 在 detached HEAD 下返回空字符串
+  const isDetached = hasGitDir && branch === '';
 
   return { gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit, headHash, isDetached };
 }

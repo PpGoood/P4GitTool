@@ -13,9 +13,15 @@ export const StatusBar: React.FC = () => {
   const [confirmReturn, setConfirmReturn] = useState<{ fileCount: number } | null>(null);
 
   const handleReturn = async () => {
-    const result = await runReturnLatest(false);
-    if (!result.ok && result.hasChanges) {
-      setConfirmReturn({ fileCount: result.changes?.length ?? 0 });
+    if ((window as any).electron?.log) (window as any).electron.log('[StatusBar] handleReturn clicked');
+    try {
+      const result = await runReturnLatest(false);
+      if ((window as any).electron?.log) (window as any).electron.log(`[StatusBar] returnLatest result: ${JSON.stringify(result)}`);
+      if (!result.ok && result.hasChanges) {
+        setConfirmReturn({ fileCount: result.changes?.length ?? 0 });
+      }
+    } catch (e: any) {
+      if ((window as any).electron?.log) (window as any).electron.log(`[StatusBar] returnLatest error: ${e.message}`);
     }
   };
 
