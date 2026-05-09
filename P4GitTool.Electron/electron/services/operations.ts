@@ -786,47 +786,55 @@ export async function discardLine(
 // -------------------------------------------------------
 
 /**
- * 获取指定文件相对 mirror/p4 的结构化 diff。
- * 新增文件（mirror/p4 里不存在）返回全部内容作为新增行。
+ * 获取指定文件相对上一个 commit（HEAD~1）的结构化 diff。
+ * 和 Fork 行为一致：显示"这次改了什么"。
+ * 新增文件（HEAD~1 里不存在）返回全部内容作为新增行。
  */
 export async function getFileDiff(
   rootDir: string, stream: string, filepath: string
 ): Promise<DiffFile | null> {
   const repo = repoPath(rootDir, stream);
 
-  // 先尝试 git diff mirror/p4
+  // git diff HEAD -- filepath：工作区相对上一个 commit 的改动
   const { stdout } = await run(
-    'git', ['diff', 'mirror/p4', '--', filepath], repo, true
+    'git', ['diff', 'HEAD', '--', filepath], repo, true
   );
   if (stdout.trim()) {
     const files = parseUnifiedDiff(stdout);
     return files[0] ?? null;
   }
 
-  // diff 为空：可能是新增文件（mirror/p4 里不存在）
-  // 读取文件内容，构造全绿 diff
-  const absPath = path.join(repo, filepath);
-  if (!fs.existsSync(absPath)) return null;
+  // diff 为空：可能是新增文件（HEAD 里不存在）或文件未改动
+  // 检查文件是否在 HEAD 里存在
+  const { code: lsCode } = await run(
+    'git', ['ls-files', '--error-unmatch', filepath], repo, true
+  );
 
-  try {
-    const content = fs.readFileSync(absPath, 'utf-8');
-    const lines = content.split('\n');
-    // 去掉末尾空行
-    if (lines[lines.length - 1] === '') lines.pop();
-
-    return {
-      oldPath: filepath,
-      newPath: filepath,
-      hunks: [{
-        header: `@@ -0,0 +1,${lines.length} @@`,
-        oldStart: 0,
-        oldLines: 0,
-        newStart: 1,
-        newLines: lines.length,
-        lines: lines.map(l => ({ type: 'add' as const, content: l })),
-      }],
-    };
-  } catch {
-    return null;
+  if (lsCode !== 0) {
+    // 文件不在 HEAD 里（新增文件），读取全部内容构造全绿 diff
+    const absPath = path.join(repo, filepath);
+    if (!fs.existsSync(absPath)) return null;
+    try {
+      const content = fs.readFileSync(absPath, 'utf-8');
+      const lines = content.split('\n');
+      if (lines[lines.length - 1] === '') lines.pop();
+      return {
+        oldPath: filepath,
+        newPath: filepath,
+        hunks: [{
+          header: `@@ -0,0 +1,${lines.length} @@`,
+          oldStart: 0,
+          oldLines: 0,
+          newStart: 1,
+          newLines: lines.length,
+          lines: lines.map(l => ({ type: 'add' as const, content: l })),
+        }],
+      };
+    } catch {
+      return null;
+    }
   }
+
+  // 文件在 HEAD 里存在但 diff 为空 = 文件未改动（已提交快照）
+  return null;
 }
