@@ -369,25 +369,21 @@ export interface ChangedFile {
 }
 
 /**
- * 改动文件 = 相对 mirror/p4 的差异 + 工作区未提交文件（两者合并去重）。
- * 用 mirror/p4 为基准的目的是过滤掉 git checkout 还原文件产生的假改动。
+ * 改动文件 = 工作区相对 HEAD 的未提交改动。
+ * 提交快照后 HEAD 更新，文件列表自动清空。
+ * mirror/p4 只在 checkAndUpdate 时用于检查过期文件。
  */
 export async function getChangedFiles(
   rootDir: string, stream: string
 ): Promise<ChangedFile[]> {
   const repo = repoPath(rootDir, stream);
 
-  // 1. mirror/p4 到 HEAD 之间的已提交差异
-  const { stdout: committedOut } = await run(
-    'git', ['diff', '--name-status', 'mirror/p4', 'HEAD'], repo, true
-  );
-
-  // 2. HEAD 到工作区的未提交差异（含暂存与未暂存）
+  // 1. HEAD 到工作区的未提交差异（含暂存与未暂存）
   const { stdout: uncommittedOut } = await run(
     'git', ['diff', '--name-status', 'HEAD'], repo, true
   );
 
-  // 3. 新文件还未被 git 跟踪
+  // 2. 新文件还未被 git 跟踪
   const { stdout: untrackedOut } = await run(
     'git', ['ls-files', '--others', '--exclude-standard'], repo, true
   );
@@ -405,7 +401,6 @@ export async function getChangedFiles(
     }
   };
 
-  consume(committedOut);
   consume(uncommittedOut);
 
   for (const p of untrackedOut.split('\n').filter(Boolean)) {
