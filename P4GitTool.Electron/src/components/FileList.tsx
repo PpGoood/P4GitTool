@@ -89,20 +89,21 @@ export const FileList: React.FC = () => {
 
       {/* Header：历史查看模式显示蓝色提示 */}
       {isViewing ? (
-        <div className="px-3 py-2 border-b border-[#569cd644] bg-[#569cd611] flex flex-col gap-1.5">
+        <div className="px-3 py-2 border-b border-[#569cd644] bg-[#569cd611] flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-[#569cd6] tracking-wider uppercase flex-1">
               浏览历史节点
             </span>
-            <button
-              onClick={exitNodeView}
-              className="text-[10px] text-[#888] hover:text-[#ccc]"
-            >
-              ✕ 返回
-            </button>
           </div>
-          {/* Checkout 按钮 */}
-          {!isDetached && (
+          {/* 返回按钮 — 大一点方便点击 */}
+          <button
+            onClick={exitNodeView}
+            className="w-full bg-[#2a2d2e] hover:bg-[#3c3c3c] text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
+          >
+            ← 返回当前工作区
+          </button>
+          {/* Checkout 按钮：只在浏览的不是当前 HEAD 节点时显示 */}
+          {!isDetached && viewingNode && viewingNode.hash !== ws.status?.headHash && (
             <button
               onClick={async () => {
                 if (!viewingNode) return;
@@ -111,7 +112,7 @@ export const FileList: React.FC = () => {
               }}
               disabled={isLoading || ws.changes.length > 0}
               title={ws.changes.length > 0 ? '请先提交或丢弃当前改动' : '切换工作区到此节点验证问题'}
-              className="w-full bg-[#569cd622] hover:bg-[#569cd633] disabled:opacity-40 disabled:cursor-not-allowed text-[#569cd6] text-[10px] py-1 rounded border border-[#569cd644]"
+              className="w-full bg-[#569cd622] hover:bg-[#569cd633] disabled:opacity-40 disabled:cursor-not-allowed text-[#569cd6] text-[11px] py-1.5 rounded border border-[#569cd644]"
             >
               Checkout 到此节点
             </button>
