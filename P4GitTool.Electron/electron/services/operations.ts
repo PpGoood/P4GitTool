@@ -624,15 +624,7 @@ export async function rollbackTo(
 
     await p4.p4SyncKeep(cfg, stream);
 
-    await run('git', ['add', '-A'], repo, true);
-    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
-    if (st.trim()) {
-      if (!await git.gitCommit(repo, `revert: rollback to ${hash.slice(0, 7)}`)) {
-        log('[ERROR] revert commit failed'); return false;
-      }
-    }
-
-    log(`[OK] 已回滚到 ${hash.slice(0, 7)}`);
+    log(`[OK] 已回滚到 ${hash.slice(0, 7)}，文件已恢复，可以继续工作或提交快照`);
     return true;
   });
 }
