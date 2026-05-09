@@ -33,6 +33,7 @@ interface AppState {
   logCollapsed: boolean;
   isLoading: boolean;
   loadingOp: string | null;
+  isDetached: boolean;        // 当前处于历史查看模式（detached HEAD）
   submitPending: boolean;
   submitChangelist: number | null;
   setSubmitPending: (v: boolean, cl?: number) => void;
@@ -69,6 +70,7 @@ interface AppState {
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
   runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
   runRollback: (hash: string) => Promise<boolean>;
+  runReturnLatest: () => Promise<boolean>;
 
   // 内部
   patchWorkspace: (stream: string, patch: Partial<WorkspaceState>) => void;
@@ -83,6 +85,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logCollapsed: true,
   isLoading: false,
   loadingOp: null,
+  isDetached: false,
   submitPending: false,
   submitChangelist: null,
   setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
@@ -312,7 +315,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true, loadingOp: 'rollback' });
     try {
       const { ok } = await api.rollback(s, hash);
-      if (ok) await get().refreshWorkspace(s);
+      if (ok) {
+        set({ isDetached: true });
+        await get().refreshWorkspace(s);
+      }
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
+
+  runReturnLatest: async () => {
+    const s = get().currentStream;
+    if (!s) return false;
+    set({ isLoading: true, loadingOp: 'return-latest' });
+    try {
+      const { ok } = await api.returnLatest(s);
+      if (ok) {
+        set({ isDetached: false });
+        await get().refreshWorkspace(s);
+      }
       return ok;
     } finally {
       set({ isLoading: false, loadingOp: null });

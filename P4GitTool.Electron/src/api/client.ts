@@ -137,7 +137,10 @@ export const api = {
     post<{ ok: boolean }>('/discard-line', { stream, path, hunkIndex, lineIndex }),
 
   rollback: (stream: string, hash: string) =>
-    post<{ ok: boolean }>('/rollback', { stream, hash }),
+    post<{ ok: boolean }>('/checkout-node', { stream, hash }),
+
+  returnLatest: (stream: string) =>
+    post<{ ok: boolean }>('/return-latest', { stream }),
 
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
     const url = `${getBaseUrl()}/api/events`;

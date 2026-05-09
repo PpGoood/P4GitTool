@@ -598,10 +598,11 @@ export async function listSnapshots(
 }
 
 /**
- * 回滚到指定 commit（文件级别：git checkout <hash> -- .）
- * 前置条件：工作区必须干净（无未提交改动）。由调用方校验。
+ * 查看历史节点：git checkout <hash>（detached HEAD）
+ * 文件变成那个状态，分支指针不动，随时可以 returnToLatest 回来。
+ * 前置条件：工作区必须干净。
  */
-export async function rollbackTo(
+export async function checkoutHistoryNode(
   rootDir: string, stream: string, hash: string, log: LogFn
 ): Promise<boolean> {
   const cfg = loadConfig();
@@ -613,18 +614,43 @@ export async function rollbackTo(
 
   return queue.enqueue(async () => {
     if (!await git.gitCheckClean(repo)) {
-      log('[ERROR] 工作区有未提交的改动，回滚前请先提交快照或丢弃改动');
+      log('[ERROR] 工作区有未提交的改动，请先提交快照或丢弃改动');
       return false;
     }
 
-    const { code } = await run('git', ['checkout', hash, '--', '.'], repo, true);
+    const { code, stderr } = await run('git', ['checkout', hash], repo, true);
     if (code !== 0) {
-      log('[ERROR] git checkout 失败'); return false;
+      log(`[ERROR] git checkout 失败: ${stderr}`); return false;
     }
 
     await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] 已切换到历史节点 ${hash.slice(0, 7)}，当前处于只读查看模式`);
+    return true;
+  });
+}
 
-    log(`[OK] 已回滚到 ${hash.slice(0, 7)}，文件已恢复，可以继续工作或提交快照`);
+/**
+ * 回到最新：git checkout <stream>
+ * 从 detached HEAD 回到工作分支。
+ */
+export async function returnToLatest(
+  rootDir: string, stream: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+
+  return queue.enqueue(async () => {
+    const { code, stderr } = await run('git', ['checkout', stream], repo, true);
+    if (code !== 0) {
+      log(`[ERROR] git checkout ${stream} 失败: ${stderr}`); return false;
+    }
+
+    await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] 已回到最新工作状态`);
     return true;
   });
 }

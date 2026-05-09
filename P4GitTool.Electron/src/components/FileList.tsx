@@ -29,6 +29,7 @@ export const FileList: React.FC = () => {
   const runInit = useAppStore((s) => s.runInit);
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
+  const isDetached = useAppStore((s) => s.isDetached);
   const toggleLog = useAppStore((s) => s.toggleLog);
   const notInited = ws.status && !ws.status.gitInited;
   const isIniting = isLoading && loadingOp === 'init';
@@ -116,21 +117,21 @@ export const FileList: React.FC = () => {
       <div className="p-2.5 border-t border-[#333] flex flex-col gap-1.5">
         <button
           onClick={() => setSnapshotOpen(true)}
-          disabled={isLoading || ws.changes.length === 0}
+          disabled={isLoading || isDetached || ws.changes.length === 0}
           className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold py-1.5 rounded"
         >
           ⊙ 提交快照
         </button>
         <button
           onClick={() => runSubmitPrepare()}
-          disabled={isLoading}
+          disabled={isLoading || isDetached}
           className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
         >
           ↑ 提交到 P4
         </button>
         <button
           onClick={() => runPull()}
-          disabled={isLoading}
+          disabled={isLoading || isDetached}
           className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
         >
           ↓ P4 Sync

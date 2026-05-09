@@ -17,6 +17,8 @@ const App: React.FC = () => {
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
   const logs = useAppStore((s) => s.logs);
+  const isDetached = useAppStore((s) => s.isDetached);
+  const runReturnLatest = useAppStore((s) => s.runReturnLatest);
   const submitPending = useAppStore((s) => s.submitPending);
   const submitChangelist = useAppStore((s) => s.submitChangelist);
   const runSubmitConfirm = useAppStore((s) => s.runSubmitConfirm);
@@ -65,6 +67,19 @@ const App: React.FC = () => {
             )}
             <p className="text-[#666] text-[10px]">请勿关闭窗口或重复点击</p>
           </div>
+        </div>
+      )}
+
+      {/* 历史查看模式警告横幅 */}
+      {isDetached && (
+        <div className="bg-[#569cd6] text-white px-4 py-2 flex items-center gap-3 text-[12px]">
+          <span>⚠ 当前处于历史查看模式，文件为只读状态，请勿修改文件</span>
+          <button
+            onClick={() => runReturnLatest()}
+            className="ml-auto bg-white/20 hover:bg-white/40 px-3 py-1 rounded font-bold"
+          >
+            回到最新工作状态
+          </button>
         </div>
       )}
 
