@@ -337,8 +337,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
         set({ isDetached: true });
-        // checkout 只是切换 HEAD，只需刷新 status 更新 isDetached
-        // snapshots 不变，changes 必然为空（刚 checkout 后工作区干净）
+        // 保持浏览模式：checkout 后依然显示该节点的改动 diff
+        // 只是顶部状态栏变橙色提醒"磁盘文件已切换"
         await get().refreshStatus(s);
         get().patchWorkspace(s, { changes: [] });
       }
