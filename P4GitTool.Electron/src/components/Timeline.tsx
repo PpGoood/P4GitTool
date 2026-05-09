@@ -74,17 +74,17 @@ export const Timeline: React.FC = () => {
         >
           <div
             className="relative h-full"
-            style={{ minWidth: `${Math.max(ws.snapshots.length, 1) * 88 + 48}px` }}
+            style={{ minWidth: `${(ws.snapshots.length + 1) * 88 + 48}px` }}
           >
-            {/* 横线：从第一个节点圆心到最后一个节点圆心 */}
-            {ws.snapshots.length > 1 && (
+            {/* 横线：从第一个节点圆心到工作区节点圆心 */}
+            {ws.snapshots.length > 0 && (
               <div
                 className="absolute bg-[#3a3a3a]"
                 style={{
                   height: '2px',
                   top: `${NODE_TOP}px`,
                   left: `${24 + 44}px`,
-                  width: `${(ws.snapshots.length - 1) * 88}px`,
+                  width: `${ws.snapshots.length * 88}px`,
                 }}
               />
             )}
@@ -93,32 +93,25 @@ export const Timeline: React.FC = () => {
             <div className="absolute inset-0 flex items-start px-6">
               {ws.snapshots.map((s) => {
                 const c = COLORS[s.kind];
-                const isCurrent = s.hash === headHash;
                 const isSelected = viewingNode?.hash === s.hash;
 
                 return (
                   <button
                     key={s.hash}
                     onClick={() => viewNode(s)}
-                    title={isCurrent ? '查看本次改动' : '点击查看此节点的改动'}
+                    title="点击查看此节点的改动"
                     className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 6}px` }}
                   >
-                    {/* 节点：选中或当前 = 正方形，其他 = 圆形 */}
+                    {/* 所有快照节点都是圆形，选中时高亮 */}
                     <div
                       className={`border-2 transition-transform group-hover:scale-[1.2] ${
-                        isCurrent || isSelected ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full'
+                        isSelected ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full'
                       }`}
                       style={{
-                        borderColor: isCurrent
-                          ? (ws.changes.length > 0 ? '#c586c0' : '#666')
-                          : isSelected ? '#569cd6' : c.border,
-                        background: isCurrent
-                          ? (ws.changes.length > 0 ? '#c586c033' : '#1e1e1e')
-                          : isSelected ? '#569cd622' : c.bg,
-                        boxShadow: isCurrent && ws.changes.length > 0
-                          ? '0 0 8px rgba(197,134,192,0.5)'
-                          : isSelected
+                        borderColor: isSelected ? '#569cd6' : c.border,
+                        background: isSelected ? '#569cd622' : c.bg,
+                        boxShadow: isSelected
                           ? '0 0 8px rgba(86,156,214,0.5)'
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
@@ -127,31 +120,60 @@ export const Timeline: React.FC = () => {
                     {/* 标签 */}
                     <div className="mt-2 text-center w-[84px]">
                       <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
-                      <div className={`text-[10px] truncate ${
-                        isCurrent
-                          ? (ws.changes.length > 0 ? 'text-[#c586c0]' : 'text-[#888]')
-                          : isSelected ? 'text-[#569cd6]' : 'text-[#999]'
-                      }`}>
+                      <div className={`text-[10px] truncate ${isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
                         {shortMsg(s.message)}
                       </div>
                       <div
                         className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
-                        style={isCurrent
-                          ? ws.changes.length > 0
-                            ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
-                            : { background: '#33333355', color: '#666' }
-                          : isSelected
+                        style={isSelected
                           ? { background: '#569cd622', color: '#569cd6', border: '1px solid #569cd644' }
                           : { background: c.tagBg, color: c.tagText }}
                       >
-                        {isCurrent
-                          ? (ws.changes.length > 0 ? `${ws.changes.length} 个改动` : '当前')
-                          : isSelected ? '浏览中' : c.label}
+                        {isSelected ? '浏览中' : c.label}
                       </div>
                     </div>
                   </button>
                 );
               })}
+
+              {/* 工作区节点：始终显示在最右边，正方形 */}
+              {(() => {
+                const isSelected = viewingNode === null; // 没有浏览历史节点时，工作区节点高亮
+                const hasChanges = ws.changes.length > 0;
+                return (
+                  <button
+                    onClick={exitNodeView}
+                    title={hasChanges ? `当前工作区：${ws.changes.length} 个未提交改动` : '当前工作区：无改动'}
+                    className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
+                    style={{ paddingTop: `${NODE_TOP - 8}px` }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-[3px] border-2 transition-transform group-hover:scale-[1.1]"
+                      style={{
+                        borderColor: hasChanges ? '#c586c0' : '#666',
+                        background: hasChanges ? '#c586c033' : '#1e1e1e',
+                        boxShadow: hasChanges
+                          ? '0 0 8px rgba(197,134,192,0.5)'
+                          : isSelected ? '0 0 0 2px #66666644' : undefined,
+                      }}
+                    />
+                    <div className="mt-2 text-center w-[84px]">
+                      <div className="text-[9px] text-[#555] mb-0.5">现在</div>
+                      <div className={`text-[10px] truncate ${hasChanges ? 'text-[#c586c0]' : 'text-[#888]'}`}>
+                        {hasChanges ? `${ws.changes.length} 个改动` : '无改动'}
+                      </div>
+                      <div
+                        className="inline-block text-[8px] mt-1 rounded px-1.5 py-0.5"
+                        style={hasChanges
+                          ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
+                          : { background: '#33333355', color: '#666' }}
+                      >
+                        工作区
+                      </div>
+                    </div>
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
