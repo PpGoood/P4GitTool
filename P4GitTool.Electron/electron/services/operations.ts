@@ -573,15 +573,18 @@ function detectKind(msg: string): SnapshotKind {
 }
 
 /**
- * 列出当前分支的快照（含节点类型）。最新的在数组末尾。
+ * 列出 stream 分支的快照（含节点类型）。最新的在数组末尾。
+ * 始终用 stream 分支名而不是 HEAD，确保 detached HEAD 时也能看到完整历史。
  */
 export async function listSnapshots(
   rootDir: string, stream: string, limit = 100
 ): Promise<SnapshotEntry[]> {
   const repo = repoPath(rootDir, stream);
+  // 用 stream 分支名，不用 HEAD
+  const ref = await git.branchExists(repo, stream) ? stream : 'HEAD';
   const { stdout } = await run(
     'git',
-    ['log', `--max-count=${limit}`, '--format=%H|%P|%cI|%s', 'HEAD'],
+    ['log', `--max-count=${limit}`, '--format=%H|%P|%cI|%s', ref],
     repo,
     true
   );
@@ -625,9 +628,16 @@ export async function checkoutHistoryNode(
       log('[ERROR] 工作区有未提交的改动，请先提交快照或丢弃改动');
       return false;
     }
+
+    const t0 = Date.now();
     const { code, stderr } = await run('git', ['checkout', hash], repo, true);
+    log(`[PERF] git checkout: ${Date.now() - t0}ms`);
     if (code !== 0) { log(`[ERROR] git checkout 失败: ${stderr}`); return false; }
+
+    const t1 = Date.now();
     await p4.p4SyncKeep(cfg, stream);
+    log(`[PERF] p4 sync -k: ${Date.now() - t1}ms`);
+
     log(`[OK] 已切换到历史节点 ${hash.slice(0, 7)}，请勿修改文件`);
     return true;
   });
