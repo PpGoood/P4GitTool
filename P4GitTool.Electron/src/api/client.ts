@@ -148,6 +148,12 @@ export const api = {
       `/node-diff?stream=${encodeURIComponent(stream)}&hash=${encodeURIComponent(hash)}&parentHash=${encodeURIComponent(parentHash)}&path=${encodeURIComponent(filepath)}`
     ),
 
+  // Checkout 到历史节点（detached HEAD，用于验证问题）
+  checkoutNode: (stream: string, hash: string) =>
+    post<{ ok: boolean }>('/checkout-node', { stream, hash }),
+  returnLatest: (stream: string) =>
+    post<{ ok: boolean }>('/return-latest', { stream }),
+
   subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
     const url = `${getBaseUrl()}/api/events`;
     rlog(`SSE 连接: ${url}`);

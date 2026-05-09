@@ -33,6 +33,7 @@ interface AppState {
   logCollapsed: boolean;
   isLoading: boolean;
   loadingOp: string | null;
+  isDetached: boolean;
   // 历史节点查看模式（纯读，不改变工作区）
   viewingNode: SnapshotEntry | null;
   viewingFiles: FileChange[];
@@ -74,6 +75,8 @@ interface AppState {
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
   runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
   runRollback: (hash: string) => Promise<boolean>;
+  runCheckoutNode: (hash: string) => Promise<boolean>;
+  runReturnLatest: () => Promise<boolean>;
   // 历史节点查看
   viewNode: (snapshot: SnapshotEntry) => Promise<void>;
   viewNodeSelectFile: (filepath: string) => Promise<void>;
@@ -92,6 +95,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   logCollapsed: true,
   isLoading: false,
   loadingOp: null,
+  isDetached: false,
   viewingNode: null,
   viewingFiles: [],
   viewingDiff: null,
@@ -323,7 +327,40 @@ export const useAppStore = create<AppState>((set, get) => ({
     return ok;
   },
 
-  runRollback: async (_hash) => false, // 已废弃，保留接口兼容
+  runRollback: async (_hash) => false,
+
+  runCheckoutNode: async (hash) => {
+    const s = get().currentStream;
+    if (!s) return false;
+    set({ isLoading: true, loadingOp: 'checkout' });
+    try {
+      const { ok } = await api.checkoutNode(s, hash);
+      if (ok) {
+        set({ isDetached: true });
+        await get().refreshStatus(s);
+      }
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
+
+  runReturnLatest: async () => {
+    const s = get().currentStream;
+    if (!s) return false;
+    set({ isLoading: true, loadingOp: 'return-latest' });
+    try {
+      const { ok } = await api.returnLatest(s);
+      if (ok) {
+        set({ isDetached: false });
+        get().exitNodeView();
+        await get().refreshWorkspace(s);
+      }
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
 
   viewNode: async (snapshot) => {
     const s = get().currentStream;

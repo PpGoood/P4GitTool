@@ -608,6 +608,52 @@ export async function listSnapshots(
 }
 
 /**
+ * Checkout 到历史节点（detached HEAD），用于验证问题。
+ * 文件变成那个状态，分支指针不动，随时可以 returnToLatest 回来。
+ * 前置条件：工作区必须干净。
+ */
+export async function checkoutHistoryNode(
+  rootDir: string, stream: string, hash: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+  return queue.enqueue(async () => {
+    if (!await git.gitCheckClean(repo)) {
+      log('[ERROR] 工作区有未提交的改动，请先提交快照或丢弃改动');
+      return false;
+    }
+    const { code, stderr } = await run('git', ['checkout', hash], repo, true);
+    if (code !== 0) { log(`[ERROR] git checkout 失败: ${stderr}`); return false; }
+    await p4.p4SyncKeep(cfg, stream);
+    log(`[OK] 已切换到历史节点 ${hash.slice(0, 7)}，请勿修改文件`);
+    return true;
+  });
+}
+
+/**
+ * 回到最新工作分支（从 detached HEAD 回来）。
+ */
+export async function returnToLatest(
+  rootDir: string, stream: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+  const queue = getQueue(repo);
+  return queue.enqueue(async () => {
+    const { code, stderr } = await run('git', ['checkout', stream], repo, true);
+    if (code !== 0) { log(`[ERROR] git checkout ${stream} 失败: ${stderr}`); return false; }
+    await p4.p4SyncKeep(cfg, stream);
+    log('[OK] 已回到最新工作状态');
+    return true;
+  });
+}
+
+/**
  * 获取某个历史节点相比上一个节点的改动文件列表（纯读操作，不改变工作区）
  */
 export async function getNodeFiles(

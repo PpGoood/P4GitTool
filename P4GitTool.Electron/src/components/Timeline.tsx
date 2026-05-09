@@ -76,15 +76,15 @@ export const Timeline: React.FC = () => {
             className="relative h-full"
             style={{ minWidth: `${Math.max(ws.snapshots.length, 1) * 88 + 48}px` }}
           >
-            {/* 贯穿所有节点的横线，绝对定位 */}
+            {/* 横线：从第一个节点圆心到最后一个节点圆心 */}
             {ws.snapshots.length > 1 && (
               <div
                 className="absolute bg-[#3a3a3a]"
                 style={{
                   height: '2px',
                   top: `${NODE_TOP}px`,
-                  left: '44px',
-                  right: '44px',
+                  left: `${24 + 44}px`,
+                  width: `${(ws.snapshots.length - 1) * 88}px`,
                 }}
               />
             )}
@@ -99,18 +99,15 @@ export const Timeline: React.FC = () => {
                 return (
                   <button
                     key={s.hash}
-                    onClick={() => !isCurrent && viewNode(s)}
-                    disabled={isCurrent}
-                    title={isCurrent ? '当前所在节点' : '点击查看此节点的改动'}
-                    className={`flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 ${isCurrent ? 'cursor-default' : 'group cursor-pointer'}`}
+                    onClick={() => viewNode(s)}
+                    title={isCurrent ? '查看本次改动' : '点击查看此节点的改动'}
+                    className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 6}px` }}
                   >
-                    {/* 节点：圆形（历史）或正方形（当前） */}
+                    {/* 节点：选中或当前 = 正方形，其他 = 圆形 */}
                     <div
-                      className={`border-2 transition-transform ${
-                        isCurrent
-                          ? 'w-4 h-4 rounded-[3px]'
-                          : 'w-3 h-3 rounded-full group-hover:scale-[1.3]'
+                      className={`border-2 transition-transform group-hover:scale-[1.2] ${
+                        isCurrent || isSelected ? 'w-4 h-4 rounded-[3px]' : 'w-3 h-3 rounded-full'
                       }`}
                       style={{
                         borderColor: isCurrent
@@ -118,11 +115,11 @@ export const Timeline: React.FC = () => {
                           : isSelected ? '#569cd6' : c.border,
                         background: isCurrent
                           ? (ws.changes.length > 0 ? '#c586c033' : '#1e1e1e')
-                          : c.bg,
+                          : isSelected ? '#569cd622' : c.bg,
                         boxShadow: isCurrent && ws.changes.length > 0
                           ? '0 0 8px rgba(197,134,192,0.5)'
                           : isSelected
-                          ? '0 0 0 2px #569cd644'
+                          ? '0 0 8px rgba(86,156,214,0.5)'
                           : c.glow ? `0 0 6px ${c.glow}` : undefined,
                       }}
                     />
@@ -143,11 +140,13 @@ export const Timeline: React.FC = () => {
                           ? ws.changes.length > 0
                             ? { background: '#c586c022', color: '#c586c0', border: '1px solid #c586c044' }
                             : { background: '#33333355', color: '#666' }
+                          : isSelected
+                          ? { background: '#569cd622', color: '#569cd6', border: '1px solid #569cd644' }
                           : { background: c.tagBg, color: c.tagText }}
                       >
                         {isCurrent
                           ? (ws.changes.length > 0 ? `${ws.changes.length} 个改动` : '当前')
-                          : c.label}
+                          : isSelected ? '浏览中' : c.label}
                       </div>
                     </div>
                   </button>

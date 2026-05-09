@@ -58,6 +58,7 @@ export const FileList: React.FC = () => {
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
   const toggleLog = useAppStore((s) => s.toggleLog);
+  const isDetached = useAppStore((s) => s.isDetached);
 
   // 历史节点查看模式
   const viewingNode = useAppStore((s) => s.viewingNode);
@@ -65,6 +66,7 @@ export const FileList: React.FC = () => {
   const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
   const viewNodeSelectFile = useAppStore((s) => s.viewNodeSelectFile);
   const exitNodeView = useAppStore((s) => s.exitNodeView);
+  const runCheckoutNode = useAppStore((s) => s.runCheckoutNode);
 
   const notInited = ws.status && !ws.status.gitInited;
   const isIniting = isLoading && loadingOp === 'init';
@@ -87,16 +89,33 @@ export const FileList: React.FC = () => {
 
       {/* Header：历史查看模式显示蓝色提示 */}
       {isViewing ? (
-        <div className="px-3 py-2 border-b border-[#007acc44] bg-[#007acc18] flex items-center gap-2">
-          <span className="text-[10px] font-bold text-[#569cd6] tracking-wider uppercase flex-1">
-            历史节点 · 只读
-          </span>
-          <button
-            onClick={exitNodeView}
-            className="text-[10px] text-[#569cd6] hover:text-[#fff] underline"
-          >
-            返回
-          </button>
+        <div className="px-3 py-2 border-b border-[#569cd644] bg-[#569cd611] flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#569cd6] tracking-wider uppercase flex-1">
+              浏览历史节点
+            </span>
+            <button
+              onClick={exitNodeView}
+              className="text-[10px] text-[#888] hover:text-[#ccc]"
+            >
+              ✕ 返回
+            </button>
+          </div>
+          {/* Checkout 按钮 */}
+          {!isDetached && (
+            <button
+              onClick={async () => {
+                if (!viewingNode) return;
+                if (!confirm(`切换到节点 ${viewingNode.hash.slice(0, 7)}？\n工作区文件将变为该节点状态，请勿修改文件，验证完成后点击"回到最新"。`)) return;
+                await runCheckoutNode(viewingNode.hash);
+              }}
+              disabled={isLoading || ws.changes.length > 0}
+              title={ws.changes.length > 0 ? '请先提交或丢弃当前改动' : '切换工作区到此节点验证问题'}
+              className="w-full bg-[#569cd622] hover:bg-[#569cd633] disabled:opacity-40 disabled:cursor-not-allowed text-[#569cd6] text-[10px] py-1 rounded border border-[#569cd644]"
+            >
+              Checkout 到此节点
+            </button>
+          )}
         </div>
       ) : (
         <div className="px-3 py-2 border-b border-[#333] flex items-center gap-2">
