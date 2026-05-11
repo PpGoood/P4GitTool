@@ -228,8 +228,46 @@ export async function buildCandidates(
   const repo = repoPath(rootDir, stream);
   const p4r = path.join(sc.root, 'ProjectX');
 
-  // 用 mirror/p4 为基准，找出相对 P4 服务器有改动的文件
-  const files = await git.diffNameOnly(repo, 'mirror/p4', 'HEAD');
+  // 找最近一个 P4 相关 tag（p4-submit、p4-sync、init）作为基准
+  // 这样不依赖 mirror/p4 是否最新，只看自己的 git 历史
+  const { stdout: tagOut } = await run(
+    'git',
+    ['log', '--format=%H %D', 'HEAD'],
+    repo,
+    true
+  );
+
+  let baseHash = '';
+  for (const line of tagOut.split('\n').filter(Boolean)) {
+    const [hash, ...refs] = line.split(' ');
+    const refStr = refs.join(' ');
+    if (
+      refStr.includes('p4-submit-') ||
+      refStr.includes('p4-sync-') ||
+      refStr.includes('tag: init:')
+    ) {
+      baseHash = hash ?? '';
+      break;
+    }
+    // 也匹配 commit message 以 init: 开头的
+    const { stdout: msgOut } = await run('git', ['log', '-1', '--format=%s', hash ?? ''], repo, true);
+    if (/^init:/i.test(msgOut.trim())) {
+      baseHash = hash ?? '';
+      break;
+    }
+  }
+
+  if (!baseHash) {
+    // 没找到基准，降级用 mirror/p4
+    const files = await git.diffNameOnly(repo, 'mirror/p4', 'HEAD');
+    return files.filter(f =>
+      f.startsWith('Source/') || f.startsWith('Source\\') ||
+      f.startsWith('Content/Script/') || f.startsWith('Content\\Script\\')
+    ).map(f => path.join(p4r, f.replace(/\//g, path.sep)));
+  }
+
+  // 用找到的基准 hash 做 diff
+  const files = await git.diffNameOnly(repo, baseHash, 'HEAD');
   return files.filter(f =>
     f.startsWith('Source/') || f.startsWith('Source\\') ||
     f.startsWith('Content/Script/') || f.startsWith('Content\\Script\\')
