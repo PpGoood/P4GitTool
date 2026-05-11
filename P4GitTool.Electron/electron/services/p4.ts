@@ -160,7 +160,7 @@ export async function p4OpenP4V(
   const { spawn } = await import('child_process');
   const proc = spawn(
     'p4v',
-    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-cmd', `change ${changelist}`],
+    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-s', `change:${changelist}`],
     { detached: true, stdio: 'ignore', windowsHide: false }
   );
   proc.unref();
