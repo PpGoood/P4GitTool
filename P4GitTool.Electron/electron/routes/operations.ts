@@ -53,9 +53,12 @@ export function createOperationsRouter(getRootDir: () => string): Router {
   router.post('/submit-prepare', async (req, res) => {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
-    res.json({ ok: true, message: 'started' });
-    const result = await ops.submitPrepare(getRootDir(), stream, makeLogFn());
-    emitDone('submit-prepare', stream, result.ok, result.changelist?.toString());
+    try {
+      // 同步等待完成再返回，前端能看到结果
+      const result = await ops.submitPrepare(getRootDir(), stream, makeLogFn());
+      emitDone('submit-prepare', stream, result.ok, result.changelist?.toString());
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
   router.post('/submit-confirm', async (req, res) => {

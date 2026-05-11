@@ -156,7 +156,14 @@ export async function p4OpenP4V(
 ): Promise<void> {
   const sc = getStream(cfg, stream);
   if (!sc) return;
-  await run('p4v', ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-cmd', `change ${changelist}`]);
+  // p4v 是 GUI 程序，detached + unref，不等待它退出
+  const { spawn } = await import('child_process');
+  const proc = spawn(
+    'p4v',
+    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-cmd', `change ${changelist}`],
+    { detached: true, stdio: 'ignore', windowsHide: false }
+  );
+  proc.unref();
 }
 
 /**

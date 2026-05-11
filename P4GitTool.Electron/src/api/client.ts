@@ -128,7 +128,8 @@ export const api = {
     post<{ ok: boolean }>('/snapshot', { stream, message }),
   checkUpdate: (stream: string) =>
     post<{ status: 'ready' | 'outdated' | 'error' }>('/check-update', { stream }),
-  submitPrepare: (stream: string) => post<{ ok: boolean }>('/submit-prepare', { stream }),
+  submitPrepare: (stream: string) =>
+    post<{ ok: boolean; changelist?: number; reason?: string }>('/submit-prepare', { stream }),
   submitConfirm: (stream: string) => post<{ ok: boolean }>('/submit-confirm', { stream }),
 
   discardFile: (stream: string, path: string) =>

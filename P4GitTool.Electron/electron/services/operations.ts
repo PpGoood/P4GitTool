@@ -281,44 +281,47 @@ export async function checkAndUpdate(
 
 export async function submitPrepare(
   rootDir: string, stream: string, log: LogFn
-): Promise<{ ok: boolean; changelist?: number }> {
+): Promise<{ ok: boolean; changelist?: number; reason?: string }> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
-  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false, reason: 'stream-not-found' }; }
 
   // 先 checkAndUpdate
   const status = await checkAndUpdate(rootDir, stream, log);
+  if (status === 'outdated') {
+    log('[ERROR] 存在过期文件，请先 P4 Sync');
+    return { ok: false, reason: 'outdated' };
+  }
   if (status !== 'ready') {
-    log(`[ERROR] 未通过检查：${status}`);
-    return { ok: false };
+    return { ok: false, reason: 'error' };
   }
 
   const candidates = await buildCandidates(rootDir, stream);
   if (candidates.length === 0) {
     log('[INFO] 无可提交文件');
-    return { ok: false };
+    return { ok: false, reason: 'no-changes' };
   }
 
   // p4 reconcile
   log(`[INFO] 正在 reconcile ${candidates.length} 个文件...`);
   if (!await p4.p4Reconcile(cfg, stream, candidates)) {
-    log('[ERROR] p4 reconcile 失败'); return { ok: false };
+    log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 
   // 创建 Changelist
   const opened = await p4.p4GetOpenedFiles(cfg, stream);
   if (opened.length === 0) {
     log('[INFO] reconcile 后无 opened 文件，可能没有实际改动');
-    return { ok: false };
+    return { ok: false, reason: 'no-opened-files' };
   }
 
-  const description = `[P4Git] ${stream} 提交 ${new Date().toISOString().slice(0, 16)}`;
+  const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
   const cl = await p4.p4CreateChangelist(cfg, stream, description, opened);
   if (cl < 0) {
-    log('[ERROR] 创建 Changelist 失败'); return { ok: false };
+    log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
   }
 
-  log(`[OK] Changelist ${cl} 已创建，打开 P4V...`);
+  log(`[OK] Changelist ${cl} 已创建（包含 ${opened.length} 个文件），正在打开 P4V...`);
   await p4.p4OpenP4V(cfg, stream, cl);
 
   return { ok: true, changelist: cl };

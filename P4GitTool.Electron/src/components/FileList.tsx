@@ -78,6 +78,23 @@ export const FileList: React.FC = () => {
   const [checkoutConfirm, setCheckoutConfirm] = useState(false);
   const [discardFileConfirm, setDiscardFileConfirm] = useState<string | null>(null);
 
+  const [submitMsg, setSubmitMsg] = useState<string | null>(null);
+
+  const handleSubmitPrepare = async () => {
+    toggleLog();
+    const result = await runSubmitPrepare();
+    if (!result.ok) {
+      const msg =
+        result.reason === 'no-changes' ? '当前没有改动，无需提交' :
+        result.reason === 'outdated' ? '存在过期文件，请先执行 P4 Sync' :
+        result.reason === 'no-opened-files' ? 'reconcile 后无文件改动，可能已是最新' :
+        result.reason === 'reconcile-failed' ? 'p4 reconcile 失败，请查看日志' :
+        result.reason === 'create-cl-failed' ? '创建 Changelist 失败，请查看日志' :
+        '提交准备失败，请查看日志';
+      setSubmitMsg(msg);
+    }
+  };
+
   const handleInit = async () => {
     toggleLog();
     await runInit();
@@ -196,7 +213,7 @@ export const FileList: React.FC = () => {
             ⊙ 提交快照
           </button>
           <button
-            onClick={() => runSubmitPrepare()}
+            onClick={handleSubmitPrepare}
             disabled={isLoading}
             className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
           >
@@ -234,6 +251,17 @@ export const FileList: React.FC = () => {
       )}
 
       <SnapshotDialog open={snapshotOpen} onClose={() => setSnapshotOpen(false)} />
+
+      {/* 提交到 P4 结果提示 */}
+      <ConfirmDialog
+        open={!!submitMsg}
+        title="提交到 P4"
+        message={submitMsg ?? ''}
+        confirmText="确认"
+        cancelText=""
+        onConfirm={() => setSubmitMsg(null)}
+        onClose={() => setSubmitMsg(null)}
+      />
 
       {/* Checkout 确认弹窗 */}
       <ConfirmDialog

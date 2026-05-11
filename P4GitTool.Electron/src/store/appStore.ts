@@ -69,7 +69,7 @@ interface AppState {
   runPull: (scope?: string, mode?: string) => Promise<void>;
   runSnapshot: (message: string) => Promise<boolean>;
   runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
-  runSubmitPrepare: () => Promise<void>;
+  runSubmitPrepare: () => Promise<{ ok: boolean; changelist?: number; reason?: string }>;
   runSubmitConfirm: () => Promise<void>;
   runDiscardFile: (filepath: string) => Promise<boolean>;
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
@@ -269,10 +269,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   runSubmitPrepare: async () => {
     const s = get().currentStream;
-    if (!s) return;
+    if (!s) return { ok: false };
     set({ isLoading: true, loadingOp: 'submit-prepare' });
     try {
-      await api.submitPrepare(s);
+      return await api.submitPrepare(s);
     } finally {
       set({ isLoading: false, loadingOp: null });
     }
