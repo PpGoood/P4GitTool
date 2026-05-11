@@ -319,11 +319,10 @@ export async function submitPrepare(
   if (cl < 0) {
     log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
   }
-  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 改动文件...`);
+  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 目录...`);
 
-  // 只对 candidates（具体改动文件）做 reconcile，不扫描整个目录
-  // 这样不会把别人的文件或未改动的文件带进来
-  if (!await p4.p4ReconcileFiles(cfg, stream, cl, candidates, log)) {
+  // 对两个目录做 reconcile，直接指定 CL（用 depot 路径，速度快）
+  if (!await p4.p4ReconcileToChangelist(cfg, stream, cl, log)) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 
