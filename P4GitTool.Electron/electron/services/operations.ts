@@ -308,12 +308,19 @@ export async function submitPrepare(
 
   const candidates = await buildCandidates(rootDir, stream);
   if (candidates.length === 0) {
-    log('[INFO] 无可提交文件');
+    log('[INFO] 无可提交文件（git diff mirror/p4 为空）');
     return { ok: false, reason: 'no-changes' };
   }
-  log(`[INFO] 检测到 ${candidates.length} 个改动文件`);
+  log(`[INFO] 检测到 ${candidates.length} 个改动文件，正在 dry run 检查...`);
 
-  // 先创建空 CL
+  // dry run：先检查有没有真正需要 reconcile 的文件，不创建 CL，不污染 default
+  const hasChanges = await p4.p4ReconcileDryRun(cfg, stream, log);
+  if (!hasChanges) {
+    log('[INFO] reconcile dry run 无改动，无需提交');
+    return { ok: false, reason: 'no-changes' };
+  }
+
+  // 有改动，创建 CL
   const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
   const cl = await p4.p4CreateChangelist(cfg, stream, description, []);
   if (cl < 0) {
@@ -321,7 +328,7 @@ export async function submitPrepare(
   }
   log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 目录...`);
 
-  // 对两个目录做 reconcile，直接指定 CL（用 depot 路径，速度快）
+  // 真正执行 reconcile，直接指定 CL
   if (!await p4.p4ReconcileToChangelist(cfg, stream, cl, log)) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }

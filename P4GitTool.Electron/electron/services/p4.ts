@@ -219,6 +219,39 @@ export async function p4ReconcileFiles(
 
 
 /**
+ * dry run：检查两个目录是否有需要 reconcile 的文件（不执行，不污染 default）
+ * 返回 true 表示有改动，false 表示无改动
+ */
+export async function p4ReconcileDryRun(
+  cfg: P4GitConfig,
+  stream: string,
+  log: (line: string) => void
+): Promise<boolean> {
+  const sc = getStream(cfg, stream);
+  if (!sc) return false;
+  const cwd = sc.root + '/ProjectX';
+
+  const dirs = [
+    `//${sc.client}/ProjectX/Content/Script/...`,
+    `//${sc.client}/ProjectX/Source/...`,
+  ];
+
+  for (const dir of dirs) {
+    const { stdout } = await run(
+      'p4',
+      [...p4Args(cfg), '-c', sc.client, 'reconcile', '-n', dir],
+      cwd,
+      true
+    );
+    if (stdout.trim()) {
+      log(`[INFO] 检测到改动文件`);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * 对 Content/Script 和 Source 目录做 reconcile，直接指定 CL。
  * 用 depot 路径（//client/...），速度快。
  */
