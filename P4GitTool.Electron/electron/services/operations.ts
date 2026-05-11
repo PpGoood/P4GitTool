@@ -598,7 +598,8 @@ function detectKind(msg: string, tags: string[]): SnapshotKind {
   if (tags.some(t => t.startsWith('p4-sync-protect-'))) return 'sync-protect';
   // 降级用 commit message
   if (/^sync-protect:/i.test(msg)) return 'sync-protect';
-  if (/^build:/i.test(msg) || /^init:/i.test(msg)) return 'other';
+  if (/^build:/i.test(msg)) return 'other';
+  if (/^init:/i.test(msg)) return 'sync';
   return 'manual';
 }
 
