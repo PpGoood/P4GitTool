@@ -17,10 +17,6 @@ const App: React.FC = () => {
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
   const logs = useAppStore((s) => s.logs);
-  const submitPending = useAppStore((s) => s.submitPending);
-  const submitChangelist = useAppStore((s) => s.submitChangelist);
-  const runSubmitConfirm = useAppStore((s) => s.runSubmitConfirm);
-  const setSubmitPending = useAppStore((s) => s.setSubmitPending);
   const [configOpen, setConfigOpen] = useState(false);
 
   useEffect(() => {
@@ -65,28 +61,6 @@ const App: React.FC = () => {
             )}
             <p className="text-[#666] text-[10px]">请勿关闭窗口或重复点击</p>
           </div>
-        </div>
-      )}
-
-      {submitPending && (
-        <div className="bg-[#cca700] text-black px-4 py-2 flex items-center gap-3 text-[12px]">
-          <span>
-            P4V 已打开
-            {submitChangelist ? ` (CL ${submitChangelist})` : ''}
-            ，完成提交后请点击：
-          </span>
-          <button
-            onClick={() => runSubmitConfirm()}
-            className="bg-black/20 hover:bg-black/40 px-3 py-1 rounded font-bold"
-          >
-            确认提交完成
-          </button>
-          <button
-            onClick={() => setSubmitPending(false)}
-            className="ml-auto text-[11px] opacity-60 hover:opacity-100"
-          >
-            取消
-          </button>
         </div>
       )}
 
