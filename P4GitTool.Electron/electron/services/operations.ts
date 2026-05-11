@@ -159,6 +159,12 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
 // Pull
 // -------------------------------------------------------
 
+async function gitTag(repo: string, prefix: string): Promise<void> {
+  const ts = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').replace('T', '-');
+  const tag = `${prefix}-${ts}`;
+  await run('git', ['tag', tag], repo, true);
+}
+
 export async function pull(
   rootDir: string, stream: string, scope: string, mode: string,
   log: LogFn
@@ -201,6 +207,9 @@ export async function pull(
   if (!await p4.p4SyncKeep(cfg, stream)) {
     log('[WARN] p4 sync -k 失败，have 记录可能不一致');
   }
+
+  // 打 p4-sync tag，时间线显示蓝色节点
+  await gitTag(repo, 'p4-sync');
 
   log(`[OK] Pull 完成`);
   return true;
@@ -303,31 +312,33 @@ export async function submitPrepare(
     return { ok: false, reason: 'no-changes' };
   }
 
-  // 对 Source/ 和 Content/Script/ 目录做 reconcile，比逐文件更高效
-  const p4r = path.join(sc.root, 'ProjectX');
-  const reconcileDirs = [
-    path.join(p4r, 'Source', '...'),
-    path.join(p4r, 'Content', 'Script', '...'),
-  ];
-  log(`[INFO] 正在 reconcile Source/ 和 Content/Script/ 目录...`);
-  if (!await p4.p4Reconcile(cfg, stream, reconcileDirs)) {
+  // 先创建空 CL，再对两个目录做 reconcile 直接指定 CL
+  // 用 depot 路径（//client/...）而不是磁盘路径，速度快
+  const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
+  const cl = await p4.p4CreateChangelist(cfg, stream, description, []);
+  if (cl < 0) {
+    log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
+  }
+  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile...`);
+
+  // 对两个目录做 reconcile，直接指定 CL
+  const reconcileOk = await p4.p4ReconcileToChangelist(cfg, stream, cl, log);
+  if (!reconcileOk) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 
-  // 创建 Changelist
+  // 检查 CL 里是否有文件
   const opened = await p4.p4GetOpenedFiles(cfg, stream);
   if (opened.length === 0) {
     log('[INFO] reconcile 后无 opened 文件，可能没有实际改动');
     return { ok: false, reason: 'no-opened-files' };
   }
 
-  const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
-  const cl = await p4.p4CreateChangelist(cfg, stream, description, opened);
-  if (cl < 0) {
-    log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
-  }
+  // 打 p4-submit tag，时间线显示绿色节点
+  const repo = repoPath(rootDir, stream);
+  await gitTag(repo, 'p4-submit');
 
-  log(`[OK] Changelist ${cl} 已创建（包含 ${opened.length} 个文件），正在打开 P4V...`);
+  log(`[OK] Changelist ${cl} 包含 ${opened.length} 个文件，正在打开 P4V...`);
   await p4.p4OpenP4V(cfg, stream, cl);
 
   return { ok: true, changelist: cl };
@@ -574,11 +585,14 @@ export interface SnapshotEntry {
   fileCount: number;
 }
 
-function detectKind(msg: string): SnapshotKind {
-  if (/^update: 同步 ?P4/i.test(msg) || /^sync:/i.test(msg)) return 'sync';
-  if (/^sync 前自动保护/.test(msg) || /^sync-protect:/i.test(msg)) return 'sync-protect';
-  if (/^submit:/i.test(msg)) return 'submit';
-  if (/^build:/i.test(msg)) return 'other';
+function detectKind(msg: string, tags: string[]): SnapshotKind {
+  // 优先用 tag 判断
+  if (tags.some(t => t.startsWith('p4-submit-'))) return 'submit';
+  if (tags.some(t => t.startsWith('p4-sync-'))) return 'sync';
+  if (tags.some(t => t.startsWith('p4-sync-protect-'))) return 'sync-protect';
+  // 降级用 commit message
+  if (/^sync-protect:/i.test(msg)) return 'sync-protect';
+  if (/^build:/i.test(msg) || /^init:/i.test(msg)) return 'other';
   return 'manual';
 }
 
@@ -590,7 +604,6 @@ export async function listSnapshots(
   rootDir: string, stream: string, limit = 100
 ): Promise<SnapshotEntry[]> {
   const repo = repoPath(rootDir, stream);
-  // 用 stream 分支名，不用 HEAD
   const ref = await git.branchExists(repo, stream) ? stream : 'HEAD';
   const { stdout } = await run(
     'git',
@@ -598,6 +611,19 @@ export async function listSnapshots(
     repo,
     true
   );
+
+  // 一次性读取所有 tag（格式：hash tagname）
+  const { stdout: tagOut } = await run(
+    'git', ['tag', '--format=%(objectname:short) %(refname:short)'], repo, true
+  );
+  const tagMap = new Map<string, string[]>();
+  for (const line of tagOut.split('\n').filter(Boolean)) {
+    const [shortHash, tagName] = line.split(' ');
+    if (!shortHash || !tagName) continue;
+    if (!tagMap.has(shortHash)) tagMap.set(shortHash, []);
+    tagMap.get(shortHash)!.push(tagName);
+  }
+
   const entries: SnapshotEntry[] = [];
   for (const line of stdout.split('\n').filter(Boolean)) {
     const [hash, parents, date, ...msgParts] = line.split('|');
@@ -612,9 +638,13 @@ export async function listSnapshots(
       fileCount = namesOut.split('\n').filter(Boolean).length;
     }
 
+    // 用 short hash 查 tag
+    const shortHash = hash.slice(0, 7);
+    const tags = tagMap.get(shortHash) ?? [];
+
     entries.push({
       hash, parentHash: parent, date, message,
-      kind: detectKind(message), fileCount,
+      kind: detectKind(message, tags), fileCount,
     });
   }
   return entries.reverse();

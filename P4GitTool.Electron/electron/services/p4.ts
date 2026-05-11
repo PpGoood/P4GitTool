@@ -186,3 +186,38 @@ export async function p4SyncKeep(
   );
   return code === 0;
 }
+
+/**
+ * 对 Content/Script 和 Source 目录做 reconcile，直接指定 CL。
+ * 用 depot 路径（//client/...）而不是磁盘路径，速度快。
+ */
+export async function p4ReconcileToChangelist(
+  cfg: P4GitConfig,
+  stream: string,
+  cl: number,
+  log: (line: string) => void
+): Promise<boolean> {
+  const sc = getStream(cfg, stream);
+  if (!sc) return false;
+  const cwd = sc.root + '/ProjectX';
+
+  const dirs = [
+    `//${sc.client}/ProjectX/Content/Script/...`,
+    `//${sc.client}/ProjectX/Source/...`,
+  ];
+
+  for (const dir of dirs) {
+    log(`[INFO] reconcile -c ${cl} ${dir}`);
+    const { code, stderr } = await run(
+      'p4',
+      [...p4Args(cfg), '-c', sc.client, 'reconcile', '-c', String(cl), dir],
+      cwd,
+      true
+    );
+    if (code !== 0 && !stderr.includes('no file(s) to reconcile')) {
+      log(`[ERROR] reconcile 失败: ${stderr}`);
+      return false;
+    }
+  }
+  return true;
+}
