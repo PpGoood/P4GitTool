@@ -311,25 +311,18 @@ export async function submitPrepare(
     log('[INFO] 无可提交文件（git diff mirror/p4 为空）');
     return { ok: false, reason: 'no-changes' };
   }
-  log(`[INFO] 检测到 ${candidates.length} 个改动文件，正在 dry run 检查...`);
+  log(`[INFO] 候选文件 ${candidates.length} 个：${candidates.slice(0, 5).join(', ')}${candidates.length > 5 ? '...' : ''}`);
 
-  // dry run：先检查有没有真正需要 reconcile 的文件，不创建 CL，不污染 default
-  const hasChanges = await p4.p4ReconcileDryRun(cfg, stream, log);
-  if (!hasChanges) {
-    log('[INFO] reconcile dry run 无改动，无需提交');
-    return { ok: false, reason: 'no-changes' };
-  }
-
-  // 有改动，创建 CL
+  // 先创建空 CL
   const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
   const cl = await p4.p4CreateChangelist(cfg, stream, description, []);
   if (cl < 0) {
     log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
   }
-  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 目录...`);
+  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 候选文件...`);
 
-  // 真正执行 reconcile，直接指定 CL
-  if (!await p4.p4ReconcileToChangelist(cfg, stream, cl, log)) {
+  // 只 reconcile 候选文件（git diff mirror/p4 HEAD 的结果），不扫描整个目录
+  if (!await p4.p4ReconcileFiles(cfg, stream, cl, candidates, log)) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 
