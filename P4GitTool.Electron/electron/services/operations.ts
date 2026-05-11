@@ -382,6 +382,44 @@ export async function submitPrepare(
 }
 
 // -------------------------------------------------------
+// Align Git（用户已在 P4V 手动 sync，只需更新 Git 记录）
+// -------------------------------------------------------
+
+export async function alignGit(
+  rootDir: string, stream: string, log: LogFn
+): Promise<boolean> {
+  const cfg = loadConfig();
+  const sc = getStream(cfg, stream);
+  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
+  const repo = repoPath(rootDir, stream);
+
+  log('[INFO] 对齐 Git 记录（不下载文件）...');
+
+  // p4 sync -k 更新 have 记录
+  if (!await p4.p4SyncKeep(cfg, stream)) {
+    log('[WARN] p4 sync -k 失败，have 记录可能不一致');
+  }
+
+  // 把当前磁盘状态同步到 mirror/p4 和 dev
+  const commitMsg = `sync: align git with P4 ${new Date().toISOString().slice(0, 16)}`;
+  if (!await snapshotToMirror(repo, 'all', commitMsg, log)) {
+    log('[ERROR] 更新 mirror/p4 失败'); return false;
+  }
+
+  // merge mirror/p4 → dev
+  const curBranch = await git.currentBranch(repo);
+  if (!await git.gitMerge(repo, 'mirror/p4')) {
+    log('[ERROR] merge mirror/p4 失败，请手动解决冲突'); return false;
+  }
+
+  // 打 p4-sync tag
+  await gitTag(repo, 'p4-sync');
+
+  log(`[OK] Git 已对齐，当前分支: ${curBranch}，工作区应无改动`);
+  return true;
+}
+
+// -------------------------------------------------------
 // Confirm Submit
 // -------------------------------------------------------
 

@@ -67,6 +67,7 @@ interface AppState {
   // 操作
   runInit: () => Promise<void>;
   runPull: (scope?: string, mode?: string) => Promise<void>;
+  runAlignGit: () => Promise<void>;
   runSnapshot: (message: string) => Promise<boolean>;
   runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
   runSubmitPrepare: () => Promise<{ ok: boolean; changelist?: number; reason?: string }>;
@@ -235,6 +236,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isLoading: true, loadingOp: 'pull' });
     try {
       await api.pull(s, scope, mode);
+      await get().refreshWorkspace(s);
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
+
+  runAlignGit: async () => {
+    const s = get().currentStream;
+    if (!s) return;
+    set({ isLoading: true, loadingOp: 'align-git' });
+    try {
+      await api.alignGit(s);
+      await get().refreshWorkspace(s);
     } finally {
       set({ isLoading: false, loadingOp: null });
     }
@@ -272,7 +286,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!s) return { ok: false };
     set({ isLoading: true, loadingOp: 'submit-prepare' });
     try {
-      return await api.submitPrepare(s);
+      const result = await api.submitPrepare(s);
+      // 提交成功后刷新快照时间线（显示绿色节点）
+      if (result.ok) {
+        await get().refreshSnapshots(s);
+      }
+      return result;
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

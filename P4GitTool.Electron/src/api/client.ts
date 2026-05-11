@@ -124,6 +124,8 @@ export const api = {
   init: () => post<{ ok: boolean }>('/init'),
   pull: (stream: string, scope = 'all', mode = 'standard') =>
     post<{ ok: boolean }>('/pull', { stream, scope, mode }),
+  alignGit: (stream: string) =>
+    post<{ ok: boolean }>('/align-git', { stream }),
   snapshot: (stream: string, message: string) =>
     post<{ ok: boolean }>('/snapshot', { stream, message }),
   checkUpdate: (stream: string) =>

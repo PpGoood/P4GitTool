@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { SnapshotDialog } from './SnapshotDialog';
 import { ConfirmDialog } from './ConfirmDialog';
+import { P4SyncDialog } from './P4SyncDialog';
 import { FileChange } from '../api/client';
 
 interface ContextMenu {
@@ -54,6 +55,7 @@ export const FileList: React.FC = () => {
   const selectFile = useAppStore((s) => s.selectFile);
   const runDiscardFile = useAppStore((s) => s.runDiscardFile);
   const runPull = useAppStore((s) => s.runPull);
+  const runAlignGit = useAppStore((s) => s.runAlignGit);
   const runSubmitPrepare = useAppStore((s) => s.runSubmitPrepare);
   const runInit = useAppStore((s) => s.runInit);
   const isLoading = useAppStore((s) => s.isLoading);
@@ -75,6 +77,7 @@ export const FileList: React.FC = () => {
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [p4SyncOpen, setP4SyncOpen] = useState(false);
   const [checkoutConfirm, setCheckoutConfirm] = useState(false);
   const [discardFileConfirm, setDiscardFileConfirm] = useState<string | null>(null);
 
@@ -220,7 +223,7 @@ export const FileList: React.FC = () => {
             ↑ 提交到 P4
           </button>
           <button
-            onClick={() => runPull()}
+            onClick={() => setP4SyncOpen(true)}
             disabled={isLoading}
             className="bg-[#333] hover:bg-[#3c3c3c] disabled:opacity-50 text-[#ccc] text-[11px] py-1.5 rounded border border-[#444]"
           >
@@ -251,6 +254,19 @@ export const FileList: React.FC = () => {
       )}
 
       <SnapshotDialog open={snapshotOpen} onClose={() => setSnapshotOpen(false)} />
+
+      <P4SyncDialog
+        open={p4SyncOpen}
+        onClose={() => setP4SyncOpen(false)}
+        onConfirm={(scope, alignOnly) => {
+          toggleLog();
+          if (alignOnly) {
+            runAlignGit();
+          } else {
+            runPull(scope);
+          }
+        }}
+      />
 
       {/* 提交到 P4 结果提示 */}
       <ConfirmDialog
