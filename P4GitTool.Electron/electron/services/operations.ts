@@ -219,7 +219,8 @@ export async function buildCandidates(
   const repo = repoPath(rootDir, stream);
   const p4r = path.join(sc.root, 'ProjectX');
 
-  const files = await git.diffNameOnly(repo, stream, 'HEAD');
+  // 用 mirror/p4 为基准，找出相对 P4 服务器有改动的文件
+  const files = await git.diffNameOnly(repo, 'mirror/p4', 'HEAD');
   return files.filter(f =>
     f.startsWith('Source/') || f.startsWith('Source\\') ||
     f.startsWith('Content/Script/') || f.startsWith('Content\\Script\\')
@@ -302,9 +303,14 @@ export async function submitPrepare(
     return { ok: false, reason: 'no-changes' };
   }
 
-  // p4 reconcile
-  log(`[INFO] 正在 reconcile ${candidates.length} 个文件...`);
-  if (!await p4.p4Reconcile(cfg, stream, candidates)) {
+  // 对 Source/ 和 Content/Script/ 目录做 reconcile，比逐文件更高效
+  const p4r = path.join(sc.root, 'ProjectX');
+  const reconcileDirs = [
+    path.join(p4r, 'Source', '...'),
+    path.join(p4r, 'Content', 'Script', '...'),
+  ];
+  log(`[INFO] 正在 reconcile Source/ 和 Content/Script/ 目录...`);
+  if (!await p4.p4Reconcile(cfg, stream, reconcileDirs)) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 
