@@ -311,19 +311,19 @@ export async function submitPrepare(
     log('[INFO] 无可提交文件');
     return { ok: false, reason: 'no-changes' };
   }
+  log(`[INFO] 检测到 ${candidates.length} 个改动文件`);
 
-  // 先创建空 CL，再对两个目录做 reconcile 直接指定 CL
-  // 用 depot 路径（//client/...）而不是磁盘路径，速度快
+  // 先创建空 CL
   const description = `[P4Git] ${stream} ${new Date().toISOString().slice(0, 16)}`;
   const cl = await p4.p4CreateChangelist(cfg, stream, description, []);
   if (cl < 0) {
     log('[ERROR] 创建 Changelist 失败'); return { ok: false, reason: 'create-cl-failed' };
   }
-  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile...`);
+  log(`[INFO] Changelist ${cl} 已创建，正在 reconcile 改动文件...`);
 
-  // 对两个目录做 reconcile，直接指定 CL
-  const reconcileOk = await p4.p4ReconcileToChangelist(cfg, stream, cl, log);
-  if (!reconcileOk) {
+  // 只对 candidates（具体改动文件）做 reconcile，不扫描整个目录
+  // 这样不会把别人的文件或未改动的文件带进来
+  if (!await p4.p4ReconcileFiles(cfg, stream, cl, candidates, log)) {
     log('[ERROR] p4 reconcile 失败'); return { ok: false, reason: 'reconcile-failed' };
   }
 

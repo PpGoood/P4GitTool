@@ -160,7 +160,7 @@ export async function p4OpenP4V(
   const { spawn } = await import('child_process');
   const proc = spawn(
     'p4v',
-    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-s', `change:${changelist}`],
+    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client],
     { detached: true, stdio: 'ignore', windowsHide: false }
   );
   proc.unref();
@@ -188,36 +188,32 @@ export async function p4SyncKeep(
 }
 
 /**
- * 对 Content/Script 和 Source 目录做 reconcile，直接指定 CL。
- * 用 depot 路径（//client/...）而不是磁盘路径，速度快。
+ * 对具体文件列表做 reconcile，直接指定 CL。
+ * 只处理真正改动的文件，不扫描整个目录。
  */
-export async function p4ReconcileToChangelist(
+export async function p4ReconcileFiles(
   cfg: P4GitConfig,
   stream: string,
   cl: number,
+  files: string[],
   log: (line: string) => void
 ): Promise<boolean> {
   const sc = getStream(cfg, stream);
   if (!sc) return false;
   const cwd = sc.root + '/ProjectX';
 
-  const dirs = [
-    `//${sc.client}/ProjectX/Content/Script/...`,
-    `//${sc.client}/ProjectX/Source/...`,
-  ];
-
-  for (const dir of dirs) {
-    log(`[INFO] reconcile -c ${cl} ${dir}`);
+  for (const file of files) {
     const { code, stderr } = await run(
       'p4',
-      [...p4Args(cfg), '-c', sc.client, 'reconcile', '-c', String(cl), dir],
+      [...p4Args(cfg), '-c', sc.client, 'reconcile', '-c', String(cl), file],
       cwd,
       true
     );
     if (code !== 0 && !stderr.includes('no file(s) to reconcile')) {
-      log(`[ERROR] reconcile 失败: ${stderr}`);
+      log(`[ERROR] reconcile 失败: ${file}: ${stderr}`);
       return false;
     }
   }
   return true;
 }
+
