@@ -641,8 +641,28 @@ function deletePendingState(rootDir: string) {
 // -------------------------------------------------------
 
 function writeGitIgnore(repo: string) {
-  fs.writeFileSync(path.join(repo, '.gitignore'),
-    '.vs/\nBinaries/\nIntermediate/\nSaved/\nDerivedDataCache/\n*.VC.db\n*.VC.opendb\n*.suo\n*.opensdf\n*.user\n');
+  fs.writeFileSync(path.join(repo, '.gitignore'), [
+    '# Unreal Engine build artifacts',
+    'Binaries/',
+    'Intermediate/',
+    'DerivedDataCache/',
+    'Saved/',
+    '',
+    '# Visual Studio',
+    '.vs/',
+    '*.VC.db',
+    '*.VC.opendb',
+    '*.suo',
+    '*.opensdf',
+    '*.user',
+    '',
+    '# Only track Source/ and Content/Script/',
+    '# Everything else is ignored by default',
+    'Content/',
+    '!Content/Script/',
+    '!Content/Script/**',
+    '',
+  ].join('\n'));
 }
 
 function writeGitAttributes(repo: string) {
