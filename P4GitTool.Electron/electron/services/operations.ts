@@ -400,22 +400,35 @@ export async function alignGit(
     log('[WARN] p4 sync -k 失败，have 记录可能不一致');
   }
 
-  // 把当前磁盘状态同步到 mirror/p4 和 dev
+  // 把磁盘最新状态加入暂存区
+  await run('git', ['add', '-A'], repo, true);
+
+  const { stdout: statusOut } = await run('git', ['status', '--porcelain'], repo, true);
+  if (!statusOut.trim()) {
+    log('[INFO] 工作区无变化，无需提交');
+    await gitTag(repo, 'p4-sync');
+    return true;
+  }
+
   const commitMsg = `sync: align git with P4 ${new Date().toISOString().slice(0, 16)}`;
+
+  // 先更新 mirror/p4（用 plumbing 命令，不切换分支）
   if (!await snapshotToMirror(repo, 'all', commitMsg, log)) {
     log('[ERROR] 更新 mirror/p4 失败'); return false;
   }
 
-  // merge mirror/p4 → dev
-  const curBranch = await git.currentBranch(repo);
-  if (!await git.gitMerge(repo, 'mirror/p4')) {
-    log('[ERROR] merge mirror/p4 失败，请手动解决冲突'); return false;
+  // 再把 mirror/p4 的最新状态 fast-forward 到 dev
+  // 因为磁盘文件就是最新的，mirror/p4 已经是正确状态，直接 reset dev 到 mirror/p4
+  const { stdout: mirrorHash } = await run('git', ['rev-parse', 'mirror/p4'], repo, true);
+  const { code } = await run('git', ['update-ref', `refs/heads/${stream}`, mirrorHash.trim()], repo, true);
+  if (code !== 0) {
+    log('[ERROR] 更新 dev 分支失败'); return false;
   }
 
-  // 打 p4-sync tag
+  // 打 p4-sync tag，时间线显示蓝色节点
   await gitTag(repo, 'p4-sync');
 
-  log(`[OK] Git 已对齐，当前分支: ${curBranch}，工作区应无改动`);
+  log('[OK] Git 已对齐，mirror/p4 和 dev 均已更新，工作区无改动');
   return true;
 }
 
