@@ -34,6 +34,7 @@ interface AppState {
   isLoading: boolean;
   loadingOp: string | null;
   isDetached: boolean;
+  alignConflicts: string[];  // 对齐 Git 时的冲突文件列表
   // 历史节点查看模式（纯读，不改变工作区）
   viewingNode: SnapshotEntry | null;
   viewingFiles: FileChange[];
@@ -68,6 +69,7 @@ interface AppState {
   runInit: () => Promise<void>;
   runPull: (scope?: string, mode?: string) => Promise<void>;
   runAlignGit: () => Promise<void>;
+  runAlignGitContinue: (resolution: 'ours' | 'theirs' | 'manual') => Promise<void>;
   runSnapshot: (message: string) => Promise<boolean>;
   runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
   runSubmitPrepare: () => Promise<{ ok: boolean; changelist?: number; reason?: string }>;
@@ -97,6 +99,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: false,
   loadingOp: null,
   isDetached: false,
+  alignConflicts: [],
   viewingNode: null,
   viewingFiles: [],
   viewingDiff: null,
@@ -247,8 +250,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!s) return;
     set({ isLoading: true, loadingOp: 'align-git' });
     try {
-      await api.alignGit(s);
-      await get().refreshWorkspace(s);
+      const result = await api.alignGit(s);
+      if (result.ok) {
+        await get().refreshWorkspace(s);
+      } else if (result.conflicts && result.conflicts.length > 0) {
+        // 有冲突，存到 store 让前端显示弹窗
+        set({ alignConflicts: result.conflicts });
+      }
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
+  },
+
+  runAlignGitContinue: async (resolution) => {
+    const s = get().currentStream;
+    if (!s) return;
+    set({ isLoading: true, loadingOp: 'align-git', alignConflicts: [] });
+    try {
+      const result = await api.alignGitContinue(s, resolution);
+      if (result.ok) {
+        await get().refreshWorkspace(s);
+      }
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

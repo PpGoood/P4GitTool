@@ -54,9 +54,19 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     try {
-      const ok = await ops.alignGit(getRootDir(), stream, makeLogFn());
-      emitDone('align-git', stream, ok);
-      res.json({ ok });
+      const result = await ops.alignGit(getRootDir(), stream, makeLogFn());
+      emitDone('align-git', stream, result.ok);
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/align-git-continue', async (req, res) => {
+    const { stream, resolution } = req.body ?? {};
+    if (!stream || !resolution) { res.status(400).json({ error: 'stream and resolution required' }); return; }
+    try {
+      const result = await ops.alignGitContinue(getRootDir(), stream, resolution, makeLogFn());
+      emitDone('align-git', stream, result.ok);
+      res.json(result);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

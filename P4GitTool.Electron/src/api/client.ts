@@ -125,7 +125,9 @@ export const api = {
   pull: (stream: string, scope = 'all', mode = 'standard') =>
     post<{ ok: boolean }>('/pull', { stream, scope, mode }),
   alignGit: (stream: string) =>
-    post<{ ok: boolean }>('/align-git', { stream }),
+    post<{ ok: boolean; conflicts?: string[] }>('/align-git', { stream }),
+  alignGitContinue: (stream: string, resolution: 'ours' | 'theirs' | 'manual') =>
+    post<{ ok: boolean }>('/align-git-continue', { stream, resolution }),
   snapshot: (stream: string, message: string) =>
     post<{ ok: boolean }>('/snapshot', { stream, message }),
   checkUpdate: (stream: string) =>

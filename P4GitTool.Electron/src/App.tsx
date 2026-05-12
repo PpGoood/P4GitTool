@@ -8,6 +8,7 @@ import { Timeline } from './components/Timeline';
 import { LogPanel } from './components/LogPanel';
 import { StatusBar } from './components/StatusBar';
 import { ConfigDialog } from './components/ConfigDialog';
+import { AlignConflictDialog } from './components/AlignConflictDialog';
 
 const App: React.FC = () => {
   useEventStream();
@@ -74,6 +75,7 @@ const App: React.FC = () => {
       <StatusBar />
 
       <ConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
+      <AlignConflictDialog />
     </div>
   );
 };
