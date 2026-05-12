@@ -334,6 +334,14 @@ export async function submitPrepare(
   const sc = getStream(cfg, stream);
   if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false, reason: 'stream-not-found' }; }
 
+  const repo = repoPath(rootDir, stream);
+
+  // 检查工作区是否干净（有未提交改动则拦截）
+  if (!await git.gitCheckClean(repo)) {
+    log('[ERROR] 工作区有未提交的改动，请先提交快照再提交到 P4');
+    return { ok: false, reason: 'dirty-workspace' };
+  }
+
   // 先 checkAndUpdate
   const status = await checkAndUpdate(rootDir, stream, log);
   if (status === 'outdated') {
@@ -372,7 +380,6 @@ export async function submitPrepare(
   }
 
   // 打 p4-submit tag，时间线显示绿色节点
-  const repo = repoPath(rootDir, stream);
   await gitTag(repo, 'p4-submit');
 
   log(`[OK] Changelist ${cl} 包含 ${opened.length} 个文件，正在打开 P4V...`);

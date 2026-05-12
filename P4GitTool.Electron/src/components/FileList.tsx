@@ -88,6 +88,7 @@ export const FileList: React.FC = () => {
     const result = await runSubmitPrepare();
     if (!result.ok) {
       const msg =
+        result.reason === 'dirty-workspace' ? '工作区有未提交的改动，请先提交快照再提交到 P4' :
         result.reason === 'no-changes' ? '当前没有改动，无需提交' :
         result.reason === 'outdated' ? '存在过期文件，请先执行 P4 Sync' :
         result.reason === 'no-opened-files' ? 'reconcile 后无文件改动，可能已是最新' :
