@@ -36,9 +36,9 @@ export const AlignConflictDialog: React.FC = () => {
           📋 复制文件列表（粘贴给 agent 解决）
         </button>
 
-        <p className="text-[11px] text-[#888] mb-3">选择解决方式：</p>
+        <p className="text-[11px] text-[#888] mb-3">必须选择解决方式，冲突未解决不能继续其他操作：</p>
 
-        <div className="flex flex-col gap-2 mb-4">
+        <div className="flex flex-col gap-2">
           <button
             onClick={() => runAlignGitContinue('theirs')}
             disabled={isLoading}
@@ -66,13 +66,6 @@ export const AlignConflictDialog: React.FC = () => {
             <div className="text-[10px] text-[#888]">已在 Fork 或编辑器中解决冲突，直接继续</div>
           </button>
         </div>
-
-        <button
-          onClick={() => useAppStore.getState().alignConflicts && useAppStore.setState({ alignConflicts: [] })}
-          className="w-full px-3 py-1.5 text-[11px] text-[#888] hover:bg-[#333] rounded"
-        >
-          取消（稍后处理）
-        </button>
       </div>
     </div>
   );

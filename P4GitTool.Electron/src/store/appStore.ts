@@ -164,9 +164,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const status = await api.getStatus(stream);
       get().patchWorkspace(stream, { status });
-      // 从 status 同步 isDetached 状态
       if (stream === get().currentStream) {
         set({ isDetached: status.isDetached ?? false });
+        // 检测到 merge 冲突状态，自动弹出冲突弹窗
+        if (status.inMergeConflict && status.mergeConflictFiles?.length > 0) {
+          set({ alignConflicts: status.mergeConflictFiles });
+        }
       }
     } catch {}
   },

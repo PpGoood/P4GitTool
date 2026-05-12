@@ -601,10 +601,19 @@ export async function getStreamStatus(rootDir: string, stream: string) {
   }
 
   // 是否处于 detached HEAD（查看历史节点模式）
-  // git branch --show-current 在 detached HEAD 下返回空字符串
   const isDetached = hasGitDir && branch === '';
 
-  return { gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit, headHash, isDetached };
+  // 是否处于 merge 冲突状态（上次对齐或 Sync 未完成）
+  const inMergeConflict = hasGitDir && fs.existsSync(path.join(repo, '.git', 'MERGE_HEAD'));
+  let mergeConflictFiles: string[] = [];
+  if (inMergeConflict) {
+    mergeConflictFiles = await git.conflictFiles(repo);
+  }
+
+  return {
+    gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit,
+    headHash, isDetached, inMergeConflict, mergeConflictFiles,
+  };
 }
 
 // -------------------------------------------------------

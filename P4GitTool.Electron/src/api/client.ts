@@ -49,6 +49,8 @@ export interface StreamStatus {
   pendingSubmit: boolean;
   headHash: string;
   isDetached: boolean;
+  inMergeConflict: boolean;
+  mergeConflictFiles: string[];
 }
 
 export interface FileChange {
