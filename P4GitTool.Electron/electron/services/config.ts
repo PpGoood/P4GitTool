@@ -22,6 +22,15 @@ const DEFAULT_CONFIG: P4GitConfig = {
   streams: [],
 };
 
+function cloneDefaultConfig(): P4GitConfig {
+  return {
+    p4_port: DEFAULT_CONFIG.p4_port,
+    p4_user: DEFAULT_CONFIG.p4_user,
+    workspaces_dir: DEFAULT_CONFIG.workspaces_dir,
+    streams: [],
+  };
+}
+
 let configPath = '';
 
 export function setConfigPath(p: string) {
@@ -29,12 +38,12 @@ export function setConfigPath(p: string) {
 }
 
 export function loadConfig(): P4GitConfig {
-  if (!configPath || !fs.existsSync(configPath)) return { ...DEFAULT_CONFIG };
+  if (!configPath || !fs.existsSync(configPath)) return cloneDefaultConfig();
   try {
     const raw = fs.readFileSync(configPath, 'utf-8');
-    return (yaml.load(raw) as P4GitConfig) ?? { ...DEFAULT_CONFIG };
+    return (yaml.load(raw) as P4GitConfig) ?? cloneDefaultConfig();
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return cloneDefaultConfig();
   }
 }
 
