@@ -54,17 +54,6 @@ export async function updateRef(repo: string, ref: string, hash: string): Promis
   return code === 0;
 }
 
-export async function mergeTree(repo: string, dst: string, src: string): Promise<{ tree: string; hasConflict: boolean }> {
-  const { code, stdout } = await run('git', ['merge-tree', '--write-tree', dst, src], repo, true);
-  const tree = stdout.split('\n')[0].trim();
-  return { tree, hasConflict: code !== 0 };
-}
-
-export async function mergeBase(repo: string, a: string, b: string): Promise<string> {
-  const { stdout } = await run('git', ['merge-base', a, b], repo, true);
-  return stdout.trim();
-}
-
 export async function gitCheckout(repo: string, branch: string): Promise<boolean> {
   const { code } = await run('git', ['checkout', branch], repo, true);
   return code === 0;
@@ -73,14 +62,6 @@ export async function gitCheckout(repo: string, branch: string): Promise<boolean
 export async function gitMerge(repo: string, branch: string): Promise<boolean> {
   const { code } = await run('git', ['merge', '--no-edit', branch], repo, true);
   return code === 0;
-}
-
-export async function gitLog(repo: string, branch: string, limit = 20): Promise<{ hash: string; message: string; date: string }[]> {
-  const { stdout } = await run('git', ['log', branch, `--max-count=${limit}`, '--format=%H|%s|%ci'], repo, true);
-  return stdout.split('\n').filter(Boolean).map(line => {
-    const [hash, message, date] = line.split('|');
-    return { hash: hash ?? '', message: message ?? '', date: date?.slice(0, 16) ?? '' };
-  });
 }
 
 export async function diffNameOnly(repo: string, base: string, head: string): Promise<string[]> {
