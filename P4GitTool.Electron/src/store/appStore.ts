@@ -389,13 +389,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
-        // 从 status 同步 isDetached（如果 checkout 到 stream 最新，后端会切回分支，isDetached 会变 false）
-        await get().refreshStatus(s);
-        // 如果 checkout 回了 stream 分支（退出 detached），退出浏览模式
-        if (!get().isDetached) {
+        // 直接读 API 最新 status，不依赖 refreshStatus 异步写 store 后再 get().isDetached
+        const status = await api.getStatus(s);
+        get().patchWorkspace(s, { status, changes: [] });
+        if (s === get().currentStream) {
+          set({ isDetached: status.isDetached ?? false });
+        }
+        // 切回了 stream 分支（退出 detached）就退出浏览模式
+        if (!status.isDetached) {
           get().exitNodeView();
         }
-        get().patchWorkspace(s, { changes: [] });
       }
       return ok;
     } finally {
