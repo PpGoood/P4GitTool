@@ -412,7 +412,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     return ok;
   },
 
-  runRollback: async (_hash) => false,
+  runRollback: async (hash) => {
+    // RollbackDialog 用这个来 checkout 到历史节点（viewNode 模式）
+    // 实际逻辑复用 runCheckoutNode
+    return get().runCheckoutNode(hash);
+  },
 
   runCheckoutNode: async (hash) => {
     const s = get().currentStream;
