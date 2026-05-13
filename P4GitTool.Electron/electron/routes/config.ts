@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { loadConfig, saveConfig } from '../services/config';
 
-export type ConfigChangedHandler = () => Promise<void> | void;
+type ConfigChangedHandler = () => Promise<void> | void;
 
 export function createConfigRouter(onChanged?: ConfigChangedHandler): Router {
   const router = Router();
