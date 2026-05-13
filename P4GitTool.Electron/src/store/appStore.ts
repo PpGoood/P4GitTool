@@ -109,7 +109,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
 
   setCurrentStream: (stream) => {
-    set({ currentStream: stream });
+    set({
+      currentStream: stream,
+      // 切换 Tab 时重置跨 workspace 的状态，避免残留
+      isDetached: false,
+      viewingNode: null,
+      viewingFiles: [],
+      viewingDiff: null,
+      viewingSelectedFile: null,
+      alignConflicts: [],
+    });
     get().refreshWorkspace(stream);
   },
 
