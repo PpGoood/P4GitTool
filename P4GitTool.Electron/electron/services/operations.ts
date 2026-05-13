@@ -175,6 +175,13 @@ export async function pull(
 
   const repo = repoPath(rootDir, stream);
 
+  // detached HEAD 下执行 pull 会让中间快照 commit 变 dangling，先拒绝
+  const curBranchName = await git.currentBranch(repo);
+  if (!curBranchName) {
+    log('[ERROR] 当前处于历史查看模式（detached HEAD），请先点状态栏"返回工作区"再执行 P4 Sync');
+    return false;
+  }
+
   if (!await p4.p4Login(cfg)) { log('[ERROR] P4 登录失败'); return false; }
 
   // Sync 前保护：若工作区有未提交改动，先 commit 一个快照
@@ -196,8 +203,7 @@ export async function pull(
   if (!await snapshotToMirror(repo, scope, commitMsg, log)) return false;
 
   // 合并 mirror/p4 -> 当前分支（stream 名）
-  const curBranch = await git.currentBranch(repo);
-  log(`[INFO] 正在合并 mirror/p4 → ${curBranch}...`);
+  log(`[INFO] 正在合并 mirror/p4 → ${curBranchName}...`);
   if (!await git.gitMerge(repo, 'mirror/p4')) {
     log('[ERROR] 合并有冲突，请在 Fork 或命令行中手动解决');
     return false;
@@ -445,6 +451,11 @@ export async function alignGitContinue(
   if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
   const repo = repoPath(rootDir, stream);
 
+  // 必须处于 merge 冲突状态才能继续对齐，否则 --theirs/--ours 会失败且错误路径不清
+  if (!fs.existsSync(path.join(repo, '.git', 'MERGE_HEAD'))) {
+    log('[ERROR] 当前工作区不在 merge 状态，无法继续对齐'); return { ok: false };
+  }
+
   // 获取冲突文件列表
   const conflicts = await git.conflictFiles(repo);
 
@@ -598,7 +609,6 @@ export async function getStreamStatus(rootDir: string, stream: string) {
   const gitInited = hasGitDir && await git.branchExists(repo, stream);
   const branch = hasGitDir ? await git.currentBranch(repo) : '';
   const branches = hasGitDir ? await git.listBranches(repo) : [];
-  const pendingSubmit = fs.existsSync(path.join(rootDir, '.p4git_pending.yaml'));
 
   // 当前 HEAD 的 hash，用于时间线高亮当前节点
   let headHash = '';
@@ -618,38 +628,9 @@ export async function getStreamStatus(rootDir: string, stream: string) {
   }
 
   return {
-    gitInited, junctionOk: sourceJunc, branch, branches, pendingSubmit,
+    gitInited, junctionOk: sourceJunc, branch, branches,
     headHash, isDetached, inMergeConflict, mergeConflictFiles,
   };
-}
-
-// -------------------------------------------------------
-// Pending State
-// -------------------------------------------------------
-
-interface PendingState {
-  stream: string;
-  featureBranch: string;
-  baseBranch: string;
-  changelist: number;
-  candidateFiles: string[];
-}
-
-const PENDING_FILE = '.p4git_pending.yaml';
-
-function savePendingState(rootDir: string, state: PendingState) {
-  fs.writeFileSync(path.join(rootDir, PENDING_FILE), yaml.dump(state), 'utf-8');
-}
-
-function loadPendingState(rootDir: string): PendingState | null {
-  const p = path.join(rootDir, PENDING_FILE);
-  if (!fs.existsSync(p)) return null;
-  return yaml.load(fs.readFileSync(p, 'utf-8')) as PendingState;
-}
-
-function deletePendingState(rootDir: string) {
-  const p = path.join(rootDir, PENDING_FILE);
-  if (fs.existsSync(p)) fs.unlinkSync(p);
 }
 
 // -------------------------------------------------------

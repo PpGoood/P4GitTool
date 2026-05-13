@@ -46,7 +46,6 @@ export interface StreamStatus {
   junctionOk: boolean;
   branch: string;
   branches: string[];
-  pendingSubmit: boolean;
   headHash: string;
   isDetached: boolean;
   inMergeConflict: boolean;
