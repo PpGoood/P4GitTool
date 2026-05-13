@@ -23,6 +23,16 @@ function getEnv() {
   };
 }
 
+/**
+ * 擦掉 stderr / 错误信息里可能回显的 P4 敏感参数：
+ * `-u <user>` / `-p <port>` / `-c <client>` / `-P <password>`。
+ * 用于把 stderr 透传给日志或 UI 之前。
+ */
+export function redactSensitive(text: string): string {
+  if (!text) return text;
+  return text.replace(/(-[upPc])\s+(\S+)/g, (_m, flag) => `${flag} ***`);
+}
+
 export async function run(
   cmd: string,
   args: string[],
@@ -46,11 +56,11 @@ export async function run(
     proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
 
     proc.on('close', (code) => {
-      resolve({ code: code ?? 1, stdout, stderr });
+      resolve({ code: code ?? 1, stdout, stderr: redactSensitive(stderr) });
     });
 
     proc.on('error', (err) => {
-      resolve({ code: 1, stdout, stderr: err.message });
+      resolve({ code: 1, stdout, stderr: redactSensitive(err.message) });
     });
 
     if (stdin !== undefined) {
@@ -78,13 +88,13 @@ export function runStream(
     const handleData = (data: Buffer) => {
       const lines = data.toString().split(/\r?\n/);
       for (const line of lines) {
-        if (line.trim()) onLine(line);
+        if (line.trim()) onLine(redactSensitive(line));
       }
     };
 
     proc.stdout.on('data', handleData);
     proc.stderr.on('data', handleData);
-    proc.on('error', (err) => { onLine(`[ERROR] ${err.message}`); resolve(1); });
+    proc.on('error', (err) => { onLine(`[ERROR] ${redactSensitive(err.message)}`); resolve(1); });
     proc.on('close', (code) => resolve(code ?? 1));
   });
 }

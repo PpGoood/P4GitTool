@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { run } from './runner';
+import { run, redactSensitive } from './runner';
 
 // 说明：Windows 下 spawn('node', [...], {shell:true}) 会走 cmd.exe，cmd 对 -e 参数里
 // 的 `>` `;` 空格等有特殊含义。最稳的办法是把 JS 写到临时文件，参数里不再有特殊字符。
@@ -43,5 +43,22 @@ describe('run', () => {
     const result = await run('node', [script], undefined, true, '');
     expect(result.code).toBe(0);
     expect(result.stdout).toBe('ok');
+  });
+});
+
+describe('redactSensitive', () => {
+  it('擦掉 -u / -p / -c / -P 的值', () => {
+    expect(redactSensitive('p4 -u alice -p ssl:server:1666 -c my-client sync'))
+      .toBe('p4 -u *** -p *** -c *** sync');
+    expect(redactSensitive('login failed for -P secret'))
+      .toBe('login failed for -P ***');
+  });
+
+  it('空字符串或 falsy 原样返回', () => {
+    expect(redactSensitive('')).toBe('');
+  });
+
+  it('不影响无敏感参数的文本', () => {
+    expect(redactSensitive('generic error: file not found')).toBe('generic error: file not found');
   });
 });
