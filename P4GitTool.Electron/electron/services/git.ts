@@ -80,14 +80,6 @@ export async function conflictFiles(repo: string): Promise<string[]> {
 }
 
 /**
- * 对比某文件在工作区与指定 ref 的差异（返回 unified diff 文本）。
- */
-export async function diffFile(repo: string, filepath: string, base: string): Promise<string> {
-  const { stdout } = await run('git', ['diff', base, '--', filepath], repo, true);
-  return stdout;
-}
-
-/**
  * 反向应用一个 patch（通过 stdin 传入），用于撤销某个 hunk / line。
  */
 export async function applyReversePatch(repo: string, patch: string): Promise<boolean> {

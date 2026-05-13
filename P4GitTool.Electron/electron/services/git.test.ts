@@ -5,24 +5,7 @@ vi.mock('./runner', () => ({
 }));
 
 import * as runner from './runner';
-import { diffFile, applyReversePatch, gitCheckoutFile } from './git';
-
-describe('diffFile', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('对比工作区与 mirror/p4 返回 unified diff', async () => {
-    (runner.run as any).mockResolvedValue({ code: 0, stdout: 'diff --git a/x b/x\n', stderr: '' });
-
-    const out = await diffFile('/repo', 'Source/Weapon.cpp', 'mirror/p4');
-    expect(out).toContain('diff --git');
-
-    const args = (runner.run as any).mock.calls[0][1];
-    expect(args).toContain('diff');
-    expect(args).toContain('mirror/p4');
-    expect(args).toContain('--');
-    expect(args).toContain('Source/Weapon.cpp');
-  });
-});
+import { applyReversePatch, gitCheckoutFile } from './git';
 
 describe('applyReversePatch', () => {
   beforeEach(() => vi.clearAllMocks());
