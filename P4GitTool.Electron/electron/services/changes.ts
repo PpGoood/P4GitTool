@@ -4,7 +4,6 @@ import { repoPath } from './config';
 import * as git from './git';
 import { run } from './runner';
 import { parseUnifiedDiff, DiffFile } from './diff';
-import { LogFn } from './internal';
 
 // -------------------------------------------------------
 // 改动文件 / 提交
