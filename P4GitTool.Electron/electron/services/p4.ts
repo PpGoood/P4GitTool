@@ -54,8 +54,8 @@ export async function p4Fstat(
   let haveRev = 0, headRev = 0;
   for (const line of stdout.split('\n')) {
     const t = line.trim();
-    if (t.startsWith('... haveRev ')) haveRev = parseInt(t.slice('... haveRev '.length));
-    if (t.startsWith('... headRev ')) headRev = parseInt(t.slice('... headRev '.length));
+    if (t.startsWith('... haveRev ')) haveRev = parseInt(t.slice('... haveRev '.length), 10);
+    if (t.startsWith('... headRev ')) headRev = parseInt(t.slice('... headRev '.length), 10);
   }
   return { haveRev, headRev };
 }
