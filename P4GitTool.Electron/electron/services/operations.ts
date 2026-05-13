@@ -27,7 +27,7 @@ export {
 } from './snapshot';
 export type { SnapshotKind, SnapshotEntry } from './snapshot';
 export {
-  getChangedFiles, commitChanges, getSnapshots, getFileDiff,
+  getChangedFiles, getFileDiff,
 } from './changes';
 export type { ChangedFile } from './changes';
 export {

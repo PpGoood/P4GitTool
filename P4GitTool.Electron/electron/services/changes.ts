@@ -57,25 +57,6 @@ export async function getChangedFiles(
   return Array.from(map.values()).sort((a, b) => a.path.localeCompare(b.path));
 }
 
-export async function commitChanges(
-  rootDir: string, stream: string, message: string, log: LogFn
-): Promise<boolean> {
-  const repo = repoPath(rootDir, stream);
-  if (!message.trim()) { log('[ERROR] 提交信息不能为空'); return false; }
-  await run('git', ['add', '-A'], repo, true);
-  const { stdout } = await run('git', ['status', '--porcelain'], repo, true);
-  if (!stdout.trim()) { log('[INFO] 没有改动可提交'); return false; }
-  if (!await git.gitCommit(repo, message)) { log('[ERROR] Commit 失败'); return false; }
-  log(`[OK] 已提交: ${message}`);
-  return true;
-}
-
-export async function getSnapshots(rootDir: string, stream: string) {
-  const repo = repoPath(rootDir, stream);
-  const branch = await git.currentBranch(repo);
-  return git.gitLog(repo, branch);
-}
-
 // -------------------------------------------------------
 // Diff 查询
 // -------------------------------------------------------
