@@ -112,8 +112,19 @@ export async function startServer(defaultRootDir: string): Promise<number> {
     next();
   });
 
+  // CORS：仅允许 Electron 渲染进程（file:// 或开发期 vite dev server）
+  // 监听 127.0.0.1 已挡住外网，但浏览器跨页 fetch 仍可触达，靠 Origin 白名单收紧
+  const ALLOWED_ORIGINS = new Set([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    // file:// 加载的页面 Origin 通常是 'null' 字符串
+    if (origin && (ALLOWED_ORIGINS.has(origin) || origin === 'null')) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     if (req.method === 'OPTIONS') { res.sendStatus(204); return; }
