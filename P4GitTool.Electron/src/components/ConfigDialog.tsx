@@ -23,7 +23,8 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
   // 每次打开对话框时，用最新的 config 重置表单
   useEffect(() => {
     if (open && config) {
-      setForm({ workspaces_dir: '', ...config });
+      // 兼容历史配置里没有 workspaces_dir 的情况：spread 之后再兜底默认空字符串
+      setForm({ ...config, workspaces_dir: config.workspaces_dir ?? '' });
       setError('');
     }
   }, [open, config]);
