@@ -8,15 +8,15 @@ export const DiffPanel: React.FC = () => {
   const ws = useCurrentWorkspace();
   const isLoading = useAppStore((s) => s.isLoading);
   const runDiscardHunk = useAppStore((s) => s.runDiscardHunk);
+  const viewMode = useAppStore((s) => s.viewMode);
 
   const [discardHunkTarget, setDiscardHunkTarget] = useState<{ filepath: string; hunkIndex: number } | null>(null);
 
-  // 历史节点查看模式
-  const viewingNode = useAppStore((s) => s.viewingNode);
+  const isViewing = viewMode.kind === 'viewing';
+  const viewingNode = viewMode.kind === 'viewing' ? viewMode.node : null;
   const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
   const viewingDiff = useAppStore((s) => s.viewingDiff);
 
-  const isViewing = !!viewingNode;
   const selectedFile = isViewing ? viewingSelectedFile : ws.selectedFile;
   const diff: DiffFile | null = isViewing ? viewingDiff : ws.diff;
 

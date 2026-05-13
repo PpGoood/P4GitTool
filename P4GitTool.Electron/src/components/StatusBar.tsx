@@ -6,12 +6,14 @@ export const StatusBar: React.FC = () => {
   const currentStream = useAppStore((s) => s.currentStream);
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
-  const isDetached = useAppStore((s) => s.isDetached);
-  const viewingNode = useAppStore((s) => s.viewingNode);
+  const viewMode = useAppStore((s) => s.viewMode);
   const runReturnLatest = useAppStore((s) => s.runReturnLatest);
   const ws = useCurrentWorkspace();
 
   const [confirmReturn, setConfirmReturn] = useState<{ fileCount: number } | null>(null);
+
+  const isDetached = viewMode.kind === 'detached';
+  const viewingNode = viewMode.kind === 'viewing' ? viewMode.node : null;
 
   // 橙色状态栏：磁盘在 detached，且当前没浏览其他节点（或浏览的就是磁盘所在节点）
   const showDetachedBar = isDetached && (

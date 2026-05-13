@@ -61,10 +61,8 @@ export const FileList: React.FC = () => {
   const isLoading = useAppStore((s) => s.isLoading);
   const loadingOp = useAppStore((s) => s.loadingOp);
   const toggleLog = useAppStore((s) => s.toggleLog);
-  const isDetached = useAppStore((s) => s.isDetached);
+  const viewMode = useAppStore((s) => s.viewMode);
 
-  // 历史节点查看模式
-  const viewingNode = useAppStore((s) => s.viewingNode);
   const viewingFiles = useAppStore((s) => s.viewingFiles);
   const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
   const viewNodeSelectFile = useAppStore((s) => s.viewNodeSelectFile);
@@ -73,7 +71,9 @@ export const FileList: React.FC = () => {
 
   const notInited = ws.status && !ws.status.gitInited;
   const isIniting = isLoading && loadingOp === 'init';
-  const isViewing = !!viewingNode;
+  const isViewing = viewMode.kind === 'viewing';
+  const isDetached = viewMode.kind === 'detached' || viewMode.kind === 'viewing';
+  const viewingNode = viewMode.kind === 'viewing' ? viewMode.node : null;
 
   const [menu, setMenu] = useState<ContextMenu | null>(null);
   const [snapshotOpen, setSnapshotOpen] = useState(false);

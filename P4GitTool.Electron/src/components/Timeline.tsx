@@ -35,12 +35,13 @@ export const Timeline: React.FC = () => {
   const collapsed = useAppStore((s) => s.timelineCollapsed);
   const toggle = useAppStore((s) => s.toggleTimeline);
   const viewNode = useAppStore((s) => s.viewNode);
-  const viewingNode = useAppStore((s) => s.viewingNode);
+  const viewMode = useAppStore((s) => s.viewMode);
   const exitNodeView = useAppStore((s) => s.exitNodeView);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const headHash = ws.status?.headHash ?? '';
-  const isViewing = !!viewingNode;
+  const isViewing = viewMode.kind === 'viewing';
+  const viewingNode = viewMode.kind === 'viewing' ? viewMode.node : null;
 
   useEffect(() => {
     const el = scrollRef.current;

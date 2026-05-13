@@ -4,6 +4,19 @@ import {
   SubmitPrepareResult,
 } from '../api/client';
 
+// -------------------------------------------------------
+// 视图模式 discriminated union（CR-12）
+// -------------------------------------------------------
+
+export type ViewMode =
+  | { kind: 'normal' }
+  | { kind: 'detached' }
+  | { kind: 'viewing'; node: SnapshotEntry }
+  | { kind: 'conflict'; files: string[] };
+
+export const VIEW_NORMAL: ViewMode = { kind: 'normal' };
+export const VIEW_DETACHED: ViewMode = { kind: 'detached' };
+
 interface WorkspaceState {
   status: StreamStatus | null;
   changes: FileChange[];
@@ -41,6 +54,8 @@ interface AppState {
   viewingFiles: FileChange[];
   viewingDiff: DiffFile | null;
   viewingSelectedFile: string | null;
+  // 统一视图模式（CR-12）：组件优先读这个，旧字段保留兼容
+  viewMode: ViewMode;
   submitPending: boolean;
   submitChangelist: number | null;
   setSubmitPending: (v: boolean, cl?: number) => void;
@@ -105,6 +120,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewingFiles: [],
   viewingDiff: null,
   viewingSelectedFile: null,
+  viewMode: VIEW_NORMAL,
   submitPending: false,
   submitChangelist: null,
   setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
@@ -119,6 +135,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       viewingDiff: null,
       viewingSelectedFile: null,
       alignConflicts: [],
+      viewMode: VIEW_NORMAL,
     });
     get().refreshWorkspace(stream);
   },
@@ -175,10 +192,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       const status = await api.getStatus(stream);
       get().patchWorkspace(stream, { status });
       if (stream === get().currentStream) {
-        set({ isDetached: status.isDetached ?? false });
+        const detached = status.isDetached ?? false;
+        set({ isDetached: detached });
         // 检测到 merge 冲突状态，自动弹出冲突弹窗
         if (status.inMergeConflict && status.mergeConflictFiles?.length > 0) {
-          set({ alignConflicts: status.mergeConflictFiles });
+          set({
+            alignConflicts: status.mergeConflictFiles,
+            viewMode: { kind: 'conflict', files: status.mergeConflictFiles },
+          });
+        } else if (detached) {
+          set({ viewMode: VIEW_DETACHED });
+        } else {
+          // 只在 normal 时重置，避免覆盖 viewing 模式
+          const cur = get().viewMode;
+          if (cur.kind !== 'viewing') set({ viewMode: VIEW_NORMAL });
         }
       }
     } catch (e: any) {
@@ -274,8 +301,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (result.ok) {
         await get().refreshWorkspace(s);
       } else if (result.conflicts && result.conflicts.length > 0) {
-        // 有冲突，存到 store 让前端显示弹窗
-        set({ alignConflicts: result.conflicts });
+        set({
+          alignConflicts: result.conflicts,
+          viewMode: { kind: 'conflict', files: result.conflicts },
+        });
       }
     } finally {
       set({ isLoading: false, loadingOp: null });
@@ -285,7 +314,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   runAlignGitContinue: async (resolution) => {
     const s = get().currentStream;
     if (!s) return;
-    set({ isLoading: true, loadingOp: 'align-git', alignConflicts: [] });
+    set({ isLoading: true, loadingOp: 'align-git', alignConflicts: [], viewMode: VIEW_NORMAL });
     try {
       const result = await api.alignGitContinue(s, resolution);
       if (result.ok) {
@@ -397,13 +426,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const { ok } = await api.checkoutNode(s, hash);
       if (ok) {
-        // 直接读 API 最新 status，不依赖 refreshStatus 异步写 store 后再 get().isDetached
         const status = await api.getStatus(s);
         get().patchWorkspace(s, { status, changes: [] });
         if (s === get().currentStream) {
-          set({ isDetached: status.isDetached ?? false });
+          const detached = status.isDetached ?? false;
+          set({
+            isDetached: detached,
+            viewMode: detached ? VIEW_DETACHED : VIEW_NORMAL,
+          });
         }
-        // 切回了 stream 分支（退出 detached）就退出浏览模式
         if (!status.isDetached) {
           get().exitNodeView();
         }
@@ -421,7 +452,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const result = await api.returnLatest(s, force);
       if (result.ok) {
-        set({ isDetached: false });
+        set({ isDetached: false, viewMode: VIEW_NORMAL });
         get().exitNodeView();
         await get().refreshWorkspace(s);
       }
@@ -434,7 +465,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewNode: async (snapshot) => {
     const s = get().currentStream;
     if (!s) return;
-    set({ viewingNode: snapshot, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null, isLoading: true, loadingOp: 'view-node' });
+    set({
+      viewingNode: snapshot,
+      viewingFiles: [],
+      viewingDiff: null,
+      viewingSelectedFile: null,
+      viewMode: { kind: 'viewing', node: snapshot },
+      isLoading: true,
+      loadingOp: 'view-node',
+    });
     try {
       const { files } = await api.getNodeFiles(s, snapshot.hash, snapshot.parentHash);
       set({ viewingFiles: files });
@@ -455,7 +494,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   exitNodeView: () => {
-    set({ viewingNode: null, viewingFiles: [], viewingDiff: null, viewingSelectedFile: null });
+    set({
+      viewingNode: null,
+      viewingFiles: [],
+      viewingDiff: null,
+      viewingSelectedFile: null,
+      viewMode: get().isDetached ? VIEW_DETACHED : VIEW_NORMAL,
+    });
   },
 }));
 

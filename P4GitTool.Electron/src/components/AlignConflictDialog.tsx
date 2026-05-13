@@ -2,11 +2,12 @@ import React from 'react';
 import { useAppStore } from '../store/appStore';
 
 export const AlignConflictDialog: React.FC = () => {
-  const conflicts = useAppStore((s) => s.alignConflicts);
+  const viewMode = useAppStore((s) => s.viewMode);
   const runAlignGitContinue = useAppStore((s) => s.runAlignGitContinue);
   const isLoading = useAppStore((s) => s.isLoading);
 
-  if (!conflicts || conflicts.length === 0) return null;
+  if (viewMode.kind !== 'conflict') return null;
+  const conflicts = viewMode.files;
 
   const copyConflicts = () => {
     const text = `以下文件存在冲突，请帮我解决：\n${conflicts.map(f => `- ${f}`).join('\n')}`;
