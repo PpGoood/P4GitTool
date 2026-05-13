@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   api, FileChange, SnapshotEntry, StreamStatus, P4GitConfig, DiffFile,
+  SubmitPrepareResult,
 } from '../api/client';
 
 interface WorkspaceState {
@@ -72,7 +73,7 @@ interface AppState {
   runAlignGitContinue: (resolution: 'ours' | 'theirs' | 'manual') => Promise<void>;
   runSnapshot: (message: string) => Promise<boolean>;
   runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
-  runSubmitPrepare: () => Promise<{ ok: boolean; changelist?: number; reason?: string }>;
+  runSubmitPrepare: () => Promise<SubmitPrepareResult>;
   runSubmitConfirm: () => Promise<void>;
   runDiscardFile: (filepath: string) => Promise<boolean>;
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
@@ -317,7 +318,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   runSubmitPrepare: async () => {
     const s = get().currentStream;
-    if (!s) return { ok: false };
+    if (!s) return { ok: false, reason: 'stream-not-found' };
     set({ isLoading: true, loadingOp: 'submit-prepare' });
     try {
       const result = await api.submitPrepare(s);

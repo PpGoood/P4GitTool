@@ -94,6 +94,23 @@ export interface P4GitConfig {
   streams: { name: string; client: string; root: string }[];
 }
 
+export type SubmitPrepareReason =
+  | 'stream-not-found'
+  | 'dirty-workspace'
+  | 'outdated'
+  | 'error'
+  | 'no-changes'
+  | 'create-cl-failed'
+  | 'reconcile-failed'
+  | 'no-opened-files'
+  | 'p4v-launch-failed';
+
+export interface SubmitPrepareResult {
+  ok: boolean;
+  changelist?: number;
+  reason?: SubmitPrepareReason;
+}
+
 export type AppEvent =
   | { type: 'log'; line: string }
   | { type: 'files-changed'; stream: string }
@@ -135,7 +152,7 @@ export const api = {
   checkUpdate: (stream: string) =>
     post<{ status: 'ready' | 'outdated' | 'error' }>('/check-update', { stream }),
   submitPrepare: (stream: string) =>
-    post<{ ok: boolean; changelist?: number; reason?: string }>('/submit-prepare', { stream }),
+    post<SubmitPrepareResult>('/submit-prepare', { stream }),
   submitConfirm: (stream: string) => post<{ ok: boolean }>('/submit-confirm', { stream }),
 
   discardFile: (stream: string, path: string) =>

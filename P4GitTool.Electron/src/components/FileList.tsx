@@ -94,6 +94,8 @@ export const FileList: React.FC = () => {
         result.reason === 'no-opened-files' ? 'reconcile 后无文件改动，可能已是最新' :
         result.reason === 'reconcile-failed' ? 'p4 reconcile 失败，请查看日志' :
         result.reason === 'create-cl-failed' ? '创建 Changelist 失败，请查看日志' :
+        result.reason === 'p4v-launch-failed' ? '打开 P4V 失败，请检查 P4V 是否已安装（命令 p4v 需要在 PATH 中）' :
+        result.reason === 'stream-not-found' ? '工作区未配置，请先在设置中添加 Stream' :
         '提交准备失败，请查看日志';
       setSubmitMsg(msg);
     }
