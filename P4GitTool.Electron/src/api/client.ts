@@ -2,9 +2,19 @@
 // 不再依赖 IPC，避免 preload 通信问题
 const API_PORT = 3001;
 
+// Electron preload 注入的 API 类型声明
+declare global {
+  interface Window {
+    electron?: {
+      getApiPort: () => Promise<number>;
+      log: (msg: string) => void;
+    };
+  }
+}
+
 function rlog(msg: string) {
-  if (typeof window !== 'undefined' && (window as any).electron?.log) {
-    (window as any).electron.log(msg);
+  if (typeof window !== 'undefined' && window.electron?.log) {
+    window.electron.log(msg);
   }
 }
 
