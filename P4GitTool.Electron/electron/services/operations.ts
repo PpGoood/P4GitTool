@@ -242,9 +242,11 @@ export async function buildCandidates(
     repo, true
   );
   const p4TagHashes = new Set<string>();
+  // tag 名格式：p4-submit-YYYYMMDD-HHMM / p4-sync-YYYYMMDD-HHMM，严格匹配，避免误吞
+  const P4_TAG_RE = /^p4-(submit|sync)-\d{8}-\d{4}$/;
   for (const line of tagOut.split('\n').filter(Boolean)) {
-    const [hash] = line.split(' ');
-    if (hash) p4TagHashes.add(hash);
+    const [hash, name] = line.split(' ');
+    if (hash && name && P4_TAG_RE.test(name)) p4TagHashes.add(hash);
   }
 
   // 一次性取 HEAD 历史（hash + commit message），在内存里找基准
@@ -754,9 +756,13 @@ export async function listSnapshots(
 ): Promise<SnapshotEntry[]> {
   const repo = repoPath(rootDir, stream);
   const ref = await git.branchExists(repo, stream) ? stream : 'HEAD';
+
+  // 一次性取 commit 元信息 + 每个 commit 的文件列表，避免 N+1 次 git diff
+  // 用 START 标记分隔每个 commit 的元信息与文件名块
+  const COMMIT_SEP = '\x1e<P4GIT-COMMIT>\x1e';
   const { stdout } = await run(
     'git',
-    ['log', `--max-count=${limit}`, '--format=%H|%P|%cI|%s', ref],
+    ['log', `--max-count=${limit}`, `--format=${COMMIT_SEP}%H|%P|%cI|%s`, '--name-only', ref],
     repo,
     true
   );
@@ -774,17 +780,20 @@ export async function listSnapshots(
   }
 
   const entries: SnapshotEntry[] = [];
-  for (const line of stdout.split('\n').filter(Boolean)) {
-    const [hash, parents, date, ...msgParts] = line.split('|');
+  // 按 COMMIT_SEP 切，每块第一行是元信息，剩余非空行是文件名
+  for (const block of stdout.split(COMMIT_SEP)) {
+    if (!block.trim()) continue;
+    const lines = block.split('\n');
+    const head = lines[0] ?? '';
+    const [hash, parents, date, ...msgParts] = head.split('|');
+    if (!hash) continue;
     const message = msgParts.join('|');
     const parent = (parents ?? '').split(' ')[0] ?? '';
 
+    // root commit（无 parent）fileCount 记 0，与原行为一致
     let fileCount = 0;
     if (parent) {
-      const { stdout: namesOut } = await run(
-        'git', ['diff', '--name-only', parent, hash], repo, true
-      );
-      fileCount = namesOut.split('\n').filter(Boolean).length;
+      fileCount = lines.slice(1).filter(l => l.trim()).length;
     }
 
     const tags = tagMap.get(hash) ?? [];
