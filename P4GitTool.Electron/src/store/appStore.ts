@@ -55,9 +55,6 @@ interface AppState {
   viewingSelectedFile: string | null;
   // 统一视图模式（CR-12）：组件优先读这个，旧字段保留兼容
   viewMode: ViewMode;
-  submitPending: boolean;
-  submitChangelist: number | null;
-  setSubmitPending: (v: boolean, cl?: number) => void;
 
   // 全局 actions
   setCurrentStream: (stream: string) => void;
@@ -88,7 +85,6 @@ interface AppState {
   runSnapshot: (message: string) => Promise<boolean>;
   runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
   runSubmitPrepare: () => Promise<SubmitPrepareResult>;
-  runSubmitConfirm: () => Promise<void>;
   runDiscardFile: (filepath: string) => Promise<boolean>;
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
   runDiscardLine: (filepath: string, hunkIndex: number, lineIndex: number) => Promise<boolean>;
@@ -119,9 +115,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewingDiff: null,
   viewingSelectedFile: null,
   viewMode: VIEW_NORMAL,
-  submitPending: false,
-  submitChangelist: null,
-  setSubmitPending: (v, cl) => set({ submitPending: v, submitChangelist: cl ?? null }),
 
   setCurrentStream: (stream) => {
     set({
@@ -358,18 +351,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().refreshSnapshots(s);
       }
       return result;
-    } finally {
-      set({ isLoading: false, loadingOp: null });
-    }
-  },
-
-  runSubmitConfirm: async () => {
-    const s = get().currentStream;
-    if (!s) return;
-    set({ isLoading: true, loadingOp: 'submit-confirm' });
-    try {
-      await api.submitConfirm(s);
-      await get().refreshWorkspace(s);
     } finally {
       set({ isLoading: false, loadingOp: null });
     }
