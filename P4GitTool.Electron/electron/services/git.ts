@@ -29,16 +29,6 @@ export async function gitCommit(repo: string, message: string): Promise<boolean>
   return code === 0;
 }
 
-export async function gitStatus(repo: string): Promise<{ status: string; path: string }[]> {
-  const { stdout } = await run('git', ['status', '--porcelain'], repo, true);
-  return stdout.split('\n')
-    .filter(Boolean)
-    .map(line => ({
-      status: line.slice(0, 2).trim(),
-      path: line.slice(3).trim(),
-    }));
-}
-
 export async function readTree(repo: string, ref: string): Promise<boolean> {
   const { code } = await run('git', ['read-tree', ref], repo, true);
   return code === 0;
@@ -83,38 +73,6 @@ export async function gitCheckout(repo: string, branch: string): Promise<boolean
 export async function gitMerge(repo: string, branch: string): Promise<boolean> {
   const { code } = await run('git', ['merge', '--no-edit', branch], repo, true);
   return code === 0;
-}
-
-export async function gitStashList(repo: string): Promise<string[]> {
-  const { stdout } = await run('git', ['stash', 'list'], repo, true);
-  return stdout.split('\n').filter(Boolean);
-}
-
-export async function gitStashPush(repo: string, message: string): Promise<boolean> {
-  await run('git', ['add', '-A'], repo, true);
-  const { code } = await run('git', ['stash', 'push', '-m', message], repo, true);
-  return code === 0;
-}
-
-export async function gitStashPop(repo: string, index: number): Promise<boolean> {
-  const { code } = await run('git', ['stash', 'pop', `stash@{${index}}`], repo, true);
-  return code === 0;
-}
-
-export async function gitStashDrop(repo: string, index: number): Promise<boolean> {
-  const { code } = await run('git', ['stash', 'drop', `stash@{${index}}`], repo, true);
-  return code === 0;
-}
-
-export async function gitReflogDates(repo: string): Promise<Map<number, string>> {
-  const { stdout } = await run('git', ['reflog', 'show', '--format=%gd|%ci', 'refs/stash'], repo, true);
-  const map = new Map<number, string>();
-  for (const line of stdout.split('\n').filter(Boolean)) {
-    const [ref, date] = line.split('|');
-    const m = ref?.match(/stash@\{(\d+)\}/);
-    if (m && date) map.set(parseInt(m[1]), date.slice(0, 16));
-  }
-  return map;
 }
 
 export async function gitLog(repo: string, branch: string, limit = 20): Promise<{ hash: string; message: string; date: string }[]> {
