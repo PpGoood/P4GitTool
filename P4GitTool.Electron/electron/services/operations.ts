@@ -228,31 +228,32 @@ export async function buildCandidates(
   const repo = repoPath(rootDir, stream);
   const p4r = path.join(sc.root, 'ProjectX');
 
-  // 找最近一个 P4 相关 tag（p4-submit、p4-sync、init）作为基准
-  // 这样不依赖 mirror/p4 是否最新，只看自己的 git 历史
+  // 一次性取 P4 相关 tag 的 full hash 集合，避开 short hash 长度不确定
   const { stdout: tagOut } = await run(
     'git',
-    ['log', '--format=%H %D', 'HEAD'],
-    repo,
-    true
+    ['for-each-ref', '--format=%(objectname) %(refname:short)',
+      'refs/tags/p4-submit-*', 'refs/tags/p4-sync-*'],
+    repo, true
+  );
+  const p4TagHashes = new Set<string>();
+  for (const line of tagOut.split('\n').filter(Boolean)) {
+    const [hash] = line.split(' ');
+    if (hash) p4TagHashes.add(hash);
+  }
+
+  // 一次性取 HEAD 历史（hash + commit message），在内存里找基准
+  const { stdout: logOut } = await run(
+    'git', ['log', '--format=%H|%s', 'HEAD'], repo, true
   );
 
   let baseHash = '';
-  for (const line of tagOut.split('\n').filter(Boolean)) {
-    const [hash, ...refs] = line.split(' ');
-    const refStr = refs.join(' ');
-    if (
-      refStr.includes('p4-submit-') ||
-      refStr.includes('p4-sync-') ||
-      refStr.includes('tag: init:')
-    ) {
-      baseHash = hash ?? '';
-      break;
-    }
-    // 也匹配 commit message 以 init: 开头的
-    const { stdout: msgOut } = await run('git', ['log', '-1', '--format=%s', hash ?? ''], repo, true);
-    if (/^init:/i.test(msgOut.trim())) {
-      baseHash = hash ?? '';
+  for (const line of logOut.split('\n').filter(Boolean)) {
+    const idx = line.indexOf('|');
+    if (idx < 0) continue;
+    const hash = line.slice(0, idx);
+    const msg = line.slice(idx + 1);
+    if (p4TagHashes.has(hash) || /^init:/i.test(msg)) {
+      baseHash = hash;
       break;
     }
   }
@@ -458,8 +459,10 @@ export async function alignGitContinue(
   }
   // manual: 用户已手动解决，直接继续
 
-  // 标记冲突已解决并提交
-  await run('git', ['add', '-A'], repo, true);
+  // 只 add 冲突文件，避免把用户在冲突解决期间动过的其他文件混进 merge commit
+  if (conflicts.length > 0) {
+    await run('git', ['add', '--', ...conflicts], repo, true);
+  }
   const { code, stderr } = await run(
     'git', ['commit', '-m', `sync: resolve conflicts and align with P4 ${new Date().toISOString().slice(0, 16)}`],
     repo, true
@@ -773,16 +776,16 @@ export async function listSnapshots(
     true
   );
 
-  // 一次性读取所有 tag（格式：hash tagname）
+  // 一次性读取所有 tag，用 full hash 建索引，避免 short hash 长度不确定
   const { stdout: tagOut } = await run(
-    'git', ['tag', '--format=%(objectname:short) %(refname:short)'], repo, true
+    'git', ['for-each-ref', '--format=%(objectname) %(refname:short)', 'refs/tags/'], repo, true
   );
   const tagMap = new Map<string, string[]>();
   for (const line of tagOut.split('\n').filter(Boolean)) {
-    const [shortHash, tagName] = line.split(' ');
-    if (!shortHash || !tagName) continue;
-    if (!tagMap.has(shortHash)) tagMap.set(shortHash, []);
-    tagMap.get(shortHash)!.push(tagName);
+    const [fullHash, tagName] = line.split(' ');
+    if (!fullHash || !tagName) continue;
+    if (!tagMap.has(fullHash)) tagMap.set(fullHash, []);
+    tagMap.get(fullHash)!.push(tagName);
   }
 
   const entries: SnapshotEntry[] = [];
@@ -799,9 +802,7 @@ export async function listSnapshots(
       fileCount = namesOut.split('\n').filter(Boolean).length;
     }
 
-    // 用 short hash 查 tag
-    const shortHash = hash.slice(0, 7);
-    const tags = tagMap.get(shortHash) ?? [];
+    const tags = tagMap.get(hash) ?? [];
 
     entries.push({
       hash, parentHash: parent, date, message,
