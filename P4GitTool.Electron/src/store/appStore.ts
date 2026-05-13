@@ -412,7 +412,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   runReturnLatest: async (force = false) => {
     const s = get().currentStream;
-    if (!s) return { ok: false } as any;
+    if (!s) return { ok: false as const };
     set({ isLoading: true, loadingOp: 'return-latest' });
     try {
       const result = await api.returnLatest(s, force);
