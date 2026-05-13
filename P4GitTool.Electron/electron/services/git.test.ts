@@ -42,8 +42,12 @@ describe('applyReversePatch', () => {
 
   it('apply 失败返回 false', async () => {
     (runner.run as any).mockResolvedValue({ code: 1, stdout: '', stderr: 'conflict' });
+    // git.ts 的 applyReversePatch 在失败路径里 console.error 输出 patch + stderr，
+    // 这里静音掉避免污染 CI 日志（被静音掉的 stderr 在产物里仍可读）
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const ok = await applyReversePatch('/repo', 'BAD');
     expect(ok).toBe(false);
+    errSpy.mockRestore();
   });
 });
 

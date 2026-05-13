@@ -19,15 +19,9 @@ export const StatusBar: React.FC = () => {
   );
 
   const handleReturn = async () => {
-    if ((window as any).electron?.log) (window as any).electron.log('[StatusBar] handleReturn clicked');
-    try {
-      const result = await runReturnLatest(false);
-      if ((window as any).electron?.log) (window as any).electron.log(`[StatusBar] returnLatest result: ${JSON.stringify(result)}`);
-      if (!result.ok && result.hasChanges) {
-        setConfirmReturn({ fileCount: result.changes?.length ?? 0 });
-      }
-    } catch (e: any) {
-      if ((window as any).electron?.log) (window as any).electron.log(`[StatusBar] returnLatest error: ${e.message}`);
+    const result = await runReturnLatest(false);
+    if (!result.ok && result.hasChanges) {
+      setConfirmReturn({ fileCount: result.changes?.length ?? 0 });
     }
   };
 

@@ -10,6 +10,19 @@ import { StatusBar } from './components/StatusBar';
 import { ConfigDialog } from './components/ConfigDialog';
 import { AlignConflictDialog } from './components/AlignConflictDialog';
 
+const LOADING_MESSAGES: Record<string, string> = {
+  init: '正在初始化工作区...',
+  pull: '正在同步 P4...',
+  'submit-prepare': '正在准备提交...',
+  'submit-confirm': '正在确认提交...',
+  'align-git': '正在对齐 Git...',
+  'view-node': '正在加载节点改动...',
+  checkout: '正在切换到历史节点...',
+  'return-latest': '正在回到最新状态...',
+  snapshot: '正在创建快照...',
+  'check-update': '正在检查文件版本...',
+};
+
 const App: React.FC = () => {
   useEventStream();
 
@@ -39,13 +52,7 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 border-2 border-[#007acc] border-t-transparent rounded-full animate-spin" />
               <span className="text-[#ccc] text-[13px] font-bold">
-                {loadingOp === 'init' ? '正在初始化工作区...' :
-                 loadingOp === 'pull' ? '正在同步 P4...' :
-                 loadingOp === 'submit-prepare' ? '正在准备提交...' :
-                 loadingOp === 'view-node' ? '正在加载节点改动...' :
-                 loadingOp === 'checkout' ? '正在切换到历史节点...' :
-                 loadingOp === 'return-latest' ? '正在回到最新状态...' :
-                 '处理中...'}
+                {LOADING_MESSAGES[loadingOp] ?? '处理中...'}
               </span>
             </div>
             {logs.length > 0 && (
