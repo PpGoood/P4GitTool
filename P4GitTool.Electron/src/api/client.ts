@@ -177,12 +177,31 @@ export const api = {
   returnLatest: (stream: string, force = false) =>
     post<{ ok: boolean; hasChanges?: boolean; changes?: FileChange[] }>('/return-latest', { stream, force }),
 
-  subscribeEvents: (onEvent: (e: AppEvent) => void): (() => void) => {
+  subscribeEvents: (
+    onEvent: (e: AppEvent) => void,
+    onError?: (reason: string) => void,
+  ): (() => void) => {
     const url = `${getBaseUrl()}/api/events`;
     rlog(`SSE 连接: ${url}`);
     const es = new EventSource(url);
-    es.onopen = () => rlog('SSE 连接成功');
-    es.onerror = (e) => rlog(`SSE 错误: ${JSON.stringify(e)}`);
+    // EventSource 会自动重连。readyState 进入 CLOSED 前都视作瞬时断开。
+    let lastNotifiedClosed = false;
+    es.onopen = () => {
+      rlog('SSE 连接成功');
+      lastNotifiedClosed = false;
+    };
+    es.onerror = () => {
+      // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSED
+      const state = es.readyState;
+      rlog(`SSE 错误，readyState=${state}`);
+      if (state === EventSource.CLOSED && !lastNotifiedClosed) {
+        lastNotifiedClosed = true;
+        onError?.('事件流连接已断开，刷新窗口或重启工具可恢复');
+      } else if (state === EventSource.CONNECTING && !lastNotifiedClosed) {
+        lastNotifiedClosed = true;
+        onError?.('后端事件流暂时不可用，正在自动重连...');
+      }
+    };
     es.onmessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);

@@ -10,30 +10,36 @@ import { useAppStore } from '../store/appStore';
  */
 export function useEventStream(): void {
   useEffect(() => {
-    const unsub = api.subscribeEvents((e: AppEvent) => {
-      const store = useAppStore.getState();
+    const unsub = api.subscribeEvents(
+      (e: AppEvent) => {
+        const store = useAppStore.getState();
 
-      switch (e.type) {
-        case 'log':
-          store.appendLog(e.line);
-          break;
+        switch (e.type) {
+          case 'log':
+            store.appendLog(e.line);
+            break;
 
-        case 'files-changed':
-          store.refreshChanges(e.stream);
-          break;
+          case 'files-changed':
+            store.refreshChanges(e.stream);
+            break;
 
-        case 'op-done':
-          if (e.op === 'submit-prepare' && e.ok) {
-            const cl = e.detail ? parseInt(e.detail, 10) : undefined;
-            store.setSubmitPending(true, cl);
-          }
-          if (e.op === 'submit-confirm' && e.ok) {
-            store.setSubmitPending(false);
-          }
-          if (e.stream) store.refreshWorkspace(e.stream);
-          break;
-      }
-    });
+          case 'op-done':
+            if (e.op === 'submit-prepare' && e.ok) {
+              const cl = e.detail ? parseInt(e.detail, 10) : undefined;
+              store.setSubmitPending(true, cl);
+            }
+            if (e.op === 'submit-confirm' && e.ok) {
+              store.setSubmitPending(false);
+            }
+            if (e.stream) store.refreshWorkspace(e.stream);
+            break;
+        }
+      },
+      (reason) => {
+        // SSE 断开 / 重连提示 → 日志面板
+        useAppStore.getState().appendLog(`[WARN] ${reason}`);
+      },
+    );
 
     return () => unsub();
   }, []);
