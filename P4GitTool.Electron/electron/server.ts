@@ -24,7 +24,7 @@ async function findAvailablePort(preferred = 3001): Promise<number> {
       srv2.unref();
       srv2.on('error', () => resolve(preferred));
       srv2.listen(0, '127.0.0.1', () => {
-        const port = (srv2.address() as any).port;
+        const port = (srv2.address() as net.AddressInfo).port;
         srv2.close(() => resolve(port));
       });
     });

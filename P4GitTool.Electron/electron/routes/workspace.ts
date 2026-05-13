@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import * as ops from '../services/operations';
 
 export function createWorkspaceRouter(getRootDir: () => string): Router {
   const router = Router();
 
-  function requireStream(req: any, res: any): string | null {
+  function requireStream(req: Request, res: Response): string | null {
     const stream = (req.query.stream ?? req.body?.stream) as string | undefined;
     if (!stream) { res.status(400).json({ error: 'stream required' }); return null; }
     return stream;
