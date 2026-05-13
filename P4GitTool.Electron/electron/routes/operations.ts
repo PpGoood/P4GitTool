@@ -40,16 +40,6 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  router.post('/check-update', async (req, res) => {
-    const { stream } = req.body ?? {};
-    if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
-    try {
-      const status = await ops.checkAndUpdate(getRootDir(), stream, makeLogFn());
-      emitDone('check-update', stream, status === 'ready', status);
-      res.json({ status });
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
-  });
-
   router.post('/align-git', async (req, res) => {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }

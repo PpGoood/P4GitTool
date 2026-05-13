@@ -83,7 +83,6 @@ interface AppState {
   runAlignGit: () => Promise<void>;
   runAlignGitContinue: (resolution: 'ours' | 'theirs' | 'manual') => Promise<void>;
   runSnapshot: (message: string) => Promise<boolean>;
-  runCheckUpdate: () => Promise<'ready' | 'outdated' | 'error'>;
   runSubmitPrepare: () => Promise<SubmitPrepareResult>;
   runDiscardFile: (filepath: string) => Promise<boolean>;
   runDiscardHunk: (filepath: string, hunkIndex: number) => Promise<boolean>;
@@ -321,20 +320,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { ok } = await api.snapshot(s, message);
       if (ok) await get().refreshWorkspace(s);
       return ok;
-    } finally {
-      set({ isLoading: false, loadingOp: null });
-    }
-  },
-
-  runCheckUpdate: async () => {
-    const s = get().currentStream;
-    if (!s) return 'error' as const;
-    set({ isLoading: true, loadingOp: 'check-update' });
-    try {
-      const { status } = await api.checkUpdate(s);
-      return status;
-    } catch {
-      return 'error' as const;
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

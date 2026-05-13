@@ -148,8 +148,6 @@ export const api = {
     post<{ ok: boolean }>('/align-git-continue', { stream, resolution }),
   snapshot: (stream: string, message: string) =>
     post<{ ok: boolean }>('/snapshot', { stream, message }),
-  checkUpdate: (stream: string) =>
-    post<{ status: 'ready' | 'outdated' | 'error' }>('/check-update', { stream }),
   submitPrepare: (stream: string) =>
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
 
