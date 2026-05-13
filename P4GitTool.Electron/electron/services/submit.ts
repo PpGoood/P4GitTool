@@ -3,7 +3,7 @@ import { loadConfig, repoPath, getStream } from './config';
 import * as git from './git';
 import * as p4 from './p4';
 import { run } from './runner';
-import { LogFn, snapshotToMirror, gitTag } from './internal';
+import { LogFn, gitTag } from './internal';
 
 // -------------------------------------------------------
 // 候选文件 & 过期检查
