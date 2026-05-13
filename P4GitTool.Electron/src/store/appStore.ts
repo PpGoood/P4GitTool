@@ -48,7 +48,6 @@ interface AppState {
   isLoading: boolean;
   loadingOp: string | null;
   isDetached: boolean;
-  alignConflicts: string[];  // 对齐 Git 时的冲突文件列表
   // 历史节点查看模式（纯读，不改变工作区）
   viewingNode: SnapshotEntry | null;
   viewingFiles: FileChange[];
@@ -115,7 +114,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: false,
   loadingOp: null,
   isDetached: false,
-  alignConflicts: [],
   viewingNode: null,
   viewingFiles: [],
   viewingDiff: null,
@@ -134,7 +132,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       viewingFiles: [],
       viewingDiff: null,
       viewingSelectedFile: null,
-      alignConflicts: [],
       viewMode: VIEW_NORMAL,
     });
     get().refreshWorkspace(stream);
@@ -197,7 +194,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         // 检测到 merge 冲突状态，自动弹出冲突弹窗
         if (status.inMergeConflict && status.mergeConflictFiles?.length > 0) {
           set({
-            alignConflicts: status.mergeConflictFiles,
             viewMode: { kind: 'conflict', files: status.mergeConflictFiles },
           });
         } else if (detached) {
@@ -302,7 +298,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().refreshWorkspace(s);
       } else if (result.conflicts && result.conflicts.length > 0) {
         set({
-          alignConflicts: result.conflicts,
           viewMode: { kind: 'conflict', files: result.conflicts },
         });
       }
@@ -314,7 +309,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   runAlignGitContinue: async (resolution) => {
     const s = get().currentStream;
     if (!s) return;
-    set({ isLoading: true, loadingOp: 'align-git', alignConflicts: [], viewMode: VIEW_NORMAL });
+    set({ isLoading: true, loadingOp: 'align-git', viewMode: VIEW_NORMAL });
     try {
       const result = await api.alignGitContinue(s, resolution);
       if (result.ok) {
