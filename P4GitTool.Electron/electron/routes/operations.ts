@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as ops from '../services/operations';
 import { eventBus, makeLogFn } from '../services/eventBus';
+import { loadConfig } from '../services/config';
 
 function emitDone(op: string, stream: string, ok: boolean, detail?: string) {
   eventBus.emit({ type: 'op-done', op, stream, ok, detail });
@@ -13,7 +14,6 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     // 同步等待 init 完成再返回，前端 isLoading 才能正确覆盖整个过程
     const ok = await ops.init(getRootDir(), makeLogFn());
     // 通知每个 stream 刷新
-    const { loadConfig } = await import('../services/config');
     const cfg = loadConfig();
     for (const s of cfg.streams) {
       emitDone('init', s.name, ok);
