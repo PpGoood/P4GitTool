@@ -153,17 +153,37 @@ export async function p4OpenP4V(
   cfg: P4GitConfig,
   stream: string,
   changelist: number
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   const sc = getStream(cfg, stream);
-  if (!sc) return;
-  // p4v 是 GUI 程序，detached + unref，不等待它退出
+  if (!sc) return { ok: false, error: `stream ${stream} 未配置` };
+  // p4v 是 GUI 程序，detached + unref 不等它退出；但要捕获 spawn 失败
   const { spawn } = await import('child_process');
-  const proc = spawn(
-    'p4v',
-    ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client],
-    { detached: true, stdio: 'ignore', windowsHide: false }
-  );
-  proc.unref();
+  return new Promise((resolve) => {
+    const proc = spawn(
+      'p4v',
+      ['-p', cfg.p4_port, '-u', cfg.p4_user, '-c', sc.client, '-s', `change:${changelist}`],
+      { detached: true, stdio: 'ignore', windowsHide: false }
+    );
+    let settled = false;
+    proc.once('error', (err) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false, error: err.message });
+    });
+    proc.once('spawn', () => {
+      if (settled) return;
+      settled = true;
+      proc.unref();
+      resolve({ ok: true });
+    });
+    // 兜底：1.5 秒内既没有 error 也没有 spawn，认为已启动
+    setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { proc.unref(); } catch {}
+      resolve({ ok: true });
+    }, 1500);
+  });
 }
 
 /**

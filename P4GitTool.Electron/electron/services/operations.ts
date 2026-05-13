@@ -380,11 +380,15 @@ export async function submitPrepare(
     return { ok: false, reason: 'no-opened-files' };
   }
 
-  // 打 p4-submit tag，时间线显示绿色节点
-  await gitTag(repo, 'p4-submit');
+  log(`[INFO] Changelist ${cl} 包含 ${opened.length} 个文件，正在打开 P4V...`);
+  const openRes = await p4.p4OpenP4V(cfg, stream, cl);
+  if (!openRes.ok) {
+    log(`[ERROR] P4V 启动失败: ${openRes.error ?? 'unknown'}`);
+    return { ok: false, reason: 'p4v-launch-failed' };
+  }
 
-  log(`[OK] Changelist ${cl} 包含 ${opened.length} 个文件，正在打开 P4V...`);
-  await p4.p4OpenP4V(cfg, stream, cl);
+  // P4V 已启动后再打 p4-submit tag，避免启动失败导致时间线误显绿色
+  await gitTag(repo, 'p4-submit');
 
   return { ok: true, changelist: cl };
 }
