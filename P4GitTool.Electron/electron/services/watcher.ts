@@ -31,7 +31,10 @@ export class WorkspaceWatcher extends EventEmitter {
           /\/Binaries(\/|$)/.test(norm) ||
           /\/Intermediate(\/|$)/.test(norm) ||
           /\/Saved(\/|$)/.test(norm) ||
-          /\.lock$/.test(norm)
+          /\.lock$/.test(norm) ||
+          /\.tmp$/.test(norm) ||
+          /\/p4git\.yaml$/.test(norm) ||
+          /\/\.p4git_pending\.yaml$/.test(norm)
         );
       },
       ignoreInitial: true,

@@ -23,15 +23,6 @@ function getEnv() {
   };
 }
 
-// Windows 下直接找 git.exe / p4.exe，不经过 cmd.exe
-// 避免 shell:true 时 cmd.exe 把带空格的参数拆分
-function resolveCmd(cmd: string): string {
-  if (process.platform !== 'win32') return cmd;
-  // 如果已经是绝对路径，直接用
-  if (path.isAbsolute(cmd)) return cmd;
-  return cmd; // spawn 会在 PATH 里找
-}
-
 export async function run(
   cmd: string,
   args: string[],
@@ -40,7 +31,7 @@ export async function run(
   stdin?: string
 ): Promise<RunResult> {
   return new Promise((resolve) => {
-    const proc = spawn(resolveCmd(cmd), args, {
+    const proc = spawn(cmd, args, {
       cwd: cwd ?? process.cwd(),
       shell: false,          // 不经过 cmd.exe，参数不会被拆分
       windowsHide: true,
@@ -77,7 +68,7 @@ export function runStream(
   onLine: (line: string) => void
 ): Promise<number> {
   return new Promise((resolve) => {
-    const proc = spawn(resolveCmd(cmd), args, {
+    const proc = spawn(cmd, args, {
       cwd,
       shell: false,
       windowsHide: true,
