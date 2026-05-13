@@ -22,6 +22,3 @@ export function createConfigRouter(onChanged?: ConfigChangedHandler): Router {
 
   return router;
 }
-
-// 保留兼容的默认导出，无回调版本
-export const configRouter = createConfigRouter();

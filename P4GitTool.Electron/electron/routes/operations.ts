@@ -73,5 +73,3 @@ export function createOperationsRouter(getRootDir: () => string): Router {
 
   return router;
 }
-
-export const operationsRouter = createOperationsRouter(() => '');
