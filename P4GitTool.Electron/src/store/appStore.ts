@@ -181,7 +181,9 @@ export const useAppStore = create<AppState>((set, get) => ({
           set({ alignConflicts: status.mergeConflictFiles });
         }
       }
-    } catch {}
+    } catch (e: any) {
+      get().appendLog(`[ERROR] 获取 ${stream} 状态失败: ${e?.message ?? e}`);
+    }
   },
 
   refreshChanges: async (stream) => {
@@ -192,14 +194,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (ws?.selectedFile && !files.some((f) => f.path === ws.selectedFile)) {
         get().patchWorkspace(stream, { selectedFile: null, diff: null });
       }
-    } catch {}
+    } catch (e: any) {
+      get().appendLog(`[ERROR] 获取 ${stream} 改动列表失败: ${e?.message ?? e}`);
+    }
   },
 
   refreshSnapshots: async (stream) => {
     try {
       const { snapshots } = await api.getSnapshots(stream);
       get().patchWorkspace(stream, { snapshots });
-    } catch {}
+    } catch (e: any) {
+      get().appendLog(`[ERROR] 获取 ${stream} 快照列表失败: ${e?.message ?? e}`);
+    }
   },
 
   refreshDiff: async (stream, filepath) => {
@@ -210,8 +216,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const { diff } = await api.getDiff(stream, filepath);
       get().patchWorkspace(stream, { diff });
-    } catch {
+    } catch (e: any) {
       get().patchWorkspace(stream, { diff: null });
+      get().appendLog(`[ERROR] 获取 ${filepath} diff 失败: ${e?.message ?? e}`);
     }
   },
 
