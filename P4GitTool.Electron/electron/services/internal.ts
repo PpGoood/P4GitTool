@@ -19,7 +19,7 @@ export function scopePaths(scope: string): string[] {
   }
 }
 
-export function scopeTargets(scope: string): string[] {
+function scopeTargets(scope: string): string[] {
   switch (scope) {
     case 'cpp': return ['Source'];
     case 'lua': return ['Content/Script'];
