@@ -42,35 +42,6 @@ export async function p4Sync(
   return true;
 }
 
-export async function p4SyncFiles(
-  cfg: P4GitConfig,
-  stream: string,
-  files: string[]
-): Promise<boolean> {
-  const sc = getStream(cfg, stream);
-  if (!sc) return false;
-  const cwd = sc.root + '/ProjectX';
-  for (const f of files) {
-    const { code } = await run('p4', [...p4Args(cfg), '-c', sc.client, 'sync', f], cwd, true);
-    if (code !== 0) return false;
-  }
-  return true;
-}
-
-export async function p4Clean(
-  cfg: P4GitConfig,
-  stream: string,
-  paths: string[]
-): Promise<boolean> {
-  const sc = getStream(cfg, stream);
-  if (!sc) return false;
-  const cwd = sc.root + '/ProjectX';
-  for (const p of paths) {
-    await run('p4', [...p4Args(cfg), '-c', sc.client, 'clean', p], cwd, true);
-  }
-  return true;
-}
-
 export async function p4Fstat(
   cfg: P4GitConfig,
   stream: string,
@@ -87,20 +58,6 @@ export async function p4Fstat(
     if (t.startsWith('... headRev ')) headRev = parseInt(t.slice('... headRev '.length));
   }
   return { haveRev, headRev };
-}
-
-export async function p4Reconcile(
-  cfg: P4GitConfig,
-  stream: string,
-  files: string[]
-): Promise<boolean> {
-  const sc = getStream(cfg, stream);
-  if (!sc) return false;
-  const cwd = sc.root + '/ProjectX';
-  for (const f of files) {
-    await run('p4', [...p4Args(cfg), '-c', sc.client, 'reconcile', f], cwd, true);
-  }
-  return true;
 }
 
 export async function p4GetOpenedFiles(
