@@ -9,8 +9,29 @@ const __dirname = path.dirname(__filename);
 
 // ── 文件日志系统 ──────────────────────────────────────────
 // 日志写到 exe 旁边的 p4git.log，方便排查问题
+// 超过 5MB 时轮转到 p4git.log.1（最多保留 2 个文件）
+const LOG_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const LOG_KEEP = 2;
+
+function rotateLogIfNeeded(logPath: string) {
+  try {
+    const stat = fs.statSync(logPath);
+    if (stat.size < LOG_MAX_BYTES) return;
+    // 轮转：p4git.log.1 → 删除，p4git.log → p4git.log.1
+    for (let i = LOG_KEEP - 1; i >= 1; i--) {
+      const older = `${logPath}.${i}`;
+      const newer = i === 1 ? logPath : `${logPath}.${i - 1}`;
+      if (fs.existsSync(older)) fs.unlinkSync(older);
+      if (fs.existsSync(newer)) fs.renameSync(newer, older);
+    }
+  } catch {
+    // 轮转失败不影响主流程
+  }
+}
+
 function setupFileLogger() {
   const logPath = path.join(path.dirname(process.execPath), 'p4git.log');
+  rotateLogIfNeeded(logPath);
   const logStream = fs.createWriteStream(logPath, { flags: 'a' });
 
   const timestamp = () => new Date().toISOString();
