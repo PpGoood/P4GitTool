@@ -3,33 +3,24 @@
  * 新代码请直接引用拆分后的模块：
  *   - workspace.ts：init、getStreamStatus
  *   - pull.ts：pull
- *   - submit.ts：buildCandidates、checkOutdated、checkAndUpdate、submitPrepare、confirmSubmit
+ *   - submit.ts：buildCandidates、submitPrepare
  *   - align.ts：alignGit、alignGitContinue
  *   - snapshot.ts：commitSnapshot、listSnapshots、SnapshotKind/SnapshotEntry
- *   - changes.ts：getChangedFiles、commitChanges、getSnapshots、getFileDiff、ChangedFile
+ *   - changes.ts：getChangedFiles、getFileDiff、ChangedFile
  *   - history.ts：checkoutHistoryNode、returnToLatest、getNodeFiles、getNodeFileDiff
  *   - discard.ts：discardFile、discardHunk、discardLine
  *   - internal.ts：LogFn、snapshotToMirror、scopePaths/scopeTargets、gitTag 等共享工具
  */
 
 export type { LogFn } from './internal';
-export { snapshotToMirror } from './internal';
 
 export { init, getStreamStatus } from './workspace';
 export { pull } from './pull';
-export {
-  buildCandidates, submitPrepare,
-} from './submit';
+export { buildCandidates, submitPrepare } from './submit';
 export { alignGit, alignGitContinue } from './align';
-export {
-  commitSnapshot, listSnapshots,
-} from './snapshot';
+export { commitSnapshot, listSnapshots } from './snapshot';
 export type { SnapshotKind, SnapshotEntry } from './snapshot';
-export {
-  getChangedFiles, getFileDiff,
-} from './changes';
+export { getChangedFiles, getFileDiff } from './changes';
 export type { ChangedFile } from './changes';
-export {
-  checkoutHistoryNode, returnToLatest, getNodeFiles, getNodeFileDiff,
-} from './history';
+export { checkoutHistoryNode, returnToLatest, getNodeFiles, getNodeFileDiff } from './history';
 export { discardFile, discardHunk, discardLine } from './discard';
