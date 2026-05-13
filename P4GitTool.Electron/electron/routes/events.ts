@@ -30,22 +30,3 @@ eventsRouter.get('/events', (req, res) => {
     unsub();
   });
 });
-
-/**
- * 兼容旧前端的 /log/stream 端点，只推送 log 类型事件的纯文本行。
- * 待 Plan 3 前端改造完成后可以删除。
- */
-eventsRouter.get('/log/stream', (req, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  const unsub = eventBus.subscribe((e) => {
-    if (e.type === 'log') {
-      res.write(`data: ${e.line}\n\n`);
-    }
-  });
-
-  req.on('close', () => unsub());
-});
