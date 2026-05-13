@@ -67,7 +67,7 @@ export async function buildCandidates(
   ).map(f => path.join(p4r, f.replace(/\//g, path.sep)));
 }
 
-export async function checkOutdated(
+async function checkOutdated(
   rootDir: string, stream: string, candidates: string[]
 ): Promise<string[]> {
   const cfg = loadConfig();
@@ -181,39 +181,4 @@ export async function submitPrepare(
   await gitTag(repo, 'p4-submit');
 
   return { ok: true, changelist: cl };
-}
-
-// -------------------------------------------------------
-// Confirm Submit
-// -------------------------------------------------------
-
-export async function confirmSubmit(
-  rootDir: string, stream: string, log: LogFn
-): Promise<boolean> {
-  const cfg = loadConfig();
-  const sc = getStream(cfg, stream);
-  if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return false; }
-
-  const repo = repoPath(rootDir, stream);
-
-  log('[INFO] 用户已在 P4V 完成提交，正在同步结果...');
-
-  // 同步刚提交的文件（拉回 P4 上的最新版本）
-  if (!await p4.p4Sync(cfg, stream, ['...'], false, log)) {
-    log('[ERROR] p4 sync 失败'); return false;
-  }
-
-  // 更新 mirror/p4 并 merge 到当前分支
-  const commitMsg = `submit: ${stream} ${new Date().toISOString()}`;
-  if (!await snapshotToMirror(repo, 'all', commitMsg, log)) return false;
-
-  if (!await git.gitMerge(repo, 'mirror/p4')) {
-    log('[WARN] 合并 mirror/p4 失败，请手动检查');
-  }
-
-  // 收尾
-  await p4.p4SyncKeep(cfg, stream);
-
-  log(`[OK] 提交流程完成`);
-  return true;
 }

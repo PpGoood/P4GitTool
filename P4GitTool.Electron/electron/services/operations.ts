@@ -18,8 +18,7 @@ export { snapshotToMirror } from './internal';
 export { init, getStreamStatus } from './workspace';
 export { pull } from './pull';
 export {
-  buildCandidates, checkOutdated, checkAndUpdate,
-  submitPrepare, confirmSubmit,
+  buildCandidates, submitPrepare,
 } from './submit';
 export { alignGit, alignGitContinue } from './align';
 export {
