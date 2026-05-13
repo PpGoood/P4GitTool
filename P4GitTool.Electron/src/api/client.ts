@@ -152,7 +152,6 @@ export const api = {
     post<{ status: 'ready' | 'outdated' | 'error' }>('/check-update', { stream }),
   submitPrepare: (stream: string) =>
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
-  submitConfirm: (stream: string) => post<{ ok: boolean }>('/submit-confirm', { stream }),
 
   discardFile: (stream: string, path: string) =>
     post<{ ok: boolean }>('/discard-file', { stream, path }),

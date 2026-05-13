@@ -81,14 +81,6 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 
-  router.post('/submit-confirm', async (req, res) => {
-    const { stream } = req.body ?? {};
-    if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
-    res.json({ ok: true, message: 'started' });
-    const ok = await ops.confirmSubmit(getRootDir(), stream, makeLogFn());
-    emitDone('submit-confirm', stream, ok);
-  });
-
   return router;
 }
 
