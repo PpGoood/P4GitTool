@@ -98,10 +98,9 @@ export function writeGitIgnore(repo: string) {
     '*.user',
     '',
     '# Only track Source/ and Content/Script/',
-    '# Everything else is ignored by default',
-    'Content/',
-    '!Content/Script/',
-    '!Content/Script/**',
+    '# 先忽略 Content 下所有内容，再用 negation 恢复 Script 子目录',
+    '/Content/*',
+    '!/Content/Script/',
     '',
   ].join('\n'));
 }
