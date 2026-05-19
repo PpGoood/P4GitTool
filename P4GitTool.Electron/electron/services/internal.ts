@@ -101,6 +101,8 @@ export function writeGitIgnore(repo: string) {
     '# 先忽略 Content 下所有内容，再用 negation 恢复 Script 子目录',
     '/Content/*',
     '!/Content/Script/',
+    '# UnLua 自动生成的类型提示，不需要追踪',
+    'Content/Script/IntelliSense/',
     '',
   ].join('\n'));
 }
