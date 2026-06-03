@@ -1,7 +1,8 @@
 import { Router } from 'express';
+import { spawn } from 'child_process';
 import * as ops from '../services/operations';
 import { eventBus, makeLogFn } from '../services/eventBus';
-import { loadConfig } from '../services/config';
+import { loadConfig, getStream, repoPath } from '../services/config';
 
 function emitDone(op: string, stream: string, ok: boolean, detail?: string) {
   eventBus.emit({ type: 'op-done', op, stream, ok, detail });
@@ -25,9 +26,9 @@ export function createOperationsRouter(getRootDir: () => string): Router {
   router.post('/pull', async (req, res) => {
     const { stream, scope = 'all', mode = 'standard' } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
-    res.json({ ok: true, message: 'started' });
     const ok = await ops.pull(getRootDir(), stream, scope, mode, makeLogFn());
     emitDone('pull', stream, ok);
+    res.json({ ok });
   });
 
   router.post('/snapshot', async (req, res) => {
@@ -69,6 +70,19 @@ export function createOperationsRouter(getRootDir: () => string): Router {
       emitDone('submit-prepare', stream, result.ok, result.changelist?.toString());
       res.json(result);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post('/open-in-vscode', async (req, res) => {
+    const { stream, filepath } = req.body ?? {};
+    if (!stream || !filepath) { res.status(400).json({ error: 'stream and filepath required' }); return; }
+    const cfg = loadConfig();
+    const sc = getStream(cfg, stream);
+    if (!sc) { res.status(400).json({ error: `stream ${stream} not found` }); return; }
+    const projectRoot = sc.root + '/ProjectX';
+    const fullPath = projectRoot + '/' + filepath;
+    const proc = spawn('code', ['--goto', fullPath], { detached: true, stdio: 'ignore', shell: true });
+    proc.unref();
+    res.json({ ok: true });
   });
 
   return router;
