@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Check, Filter } from 'lucide-react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
 import { SnapshotEntry } from '../api/client';
 
@@ -38,15 +38,26 @@ export const Timeline: React.FC = () => {
   const viewMode = useAppStore((s) => s.viewMode);
   const exitNodeView = useAppStore((s) => s.exitNodeView);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [filterManual, setFilterManual] = useState(false);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
 
   const headHash = ws.status?.headHash ?? '';
   const isViewing = viewMode.kind === 'viewing';
   const viewingNode = viewMode.kind === 'viewing' ? viewMode.node : null;
 
+  const snapshots = filterManual ? ws.snapshots.filter(s => s.kind === 'manual') : ws.snapshots;
+
+  const handleCopy = (e: React.MouseEvent, hash: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(hash);
+    setCopiedHash(hash);
+    setTimeout(() => setCopiedHash(null), 1500);
+  };
+
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollLeft = el.scrollWidth;
-  }, [ws.snapshots.length]);
+  }, [snapshots.length]);
 
   return (
     <>
@@ -62,6 +73,15 @@ export const Timeline: React.FC = () => {
             {isViewing ? '· 历史查看中' : '· 点击节点查看历史'}
           </span>
         )}
+        {!collapsed && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setFilterManual(!filterManual); }}
+            title={filterManual ? '显示全部节点' : '只显示手动快照'}
+            className={`ml-2 p-0.5 rounded transition-colors ${filterManual ? 'text-[#cca700] bg-[#cca70022]' : 'text-[#555] hover:text-[#999]'}`}
+          >
+            <Filter size={11} />
+          </button>
+        )}
         <span className="ml-auto text-[#555]">
           {collapsed ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </span>
@@ -70,12 +90,12 @@ export const Timeline: React.FC = () => {
       {!collapsed && (
         <div
           ref={scrollRef}
-          className="h-[110px] bg-[#1e1e1e] overflow-x-auto overflow-y-hidden border-b border-[#333]"
+          className="h-[130px] bg-[#1e1e1e] overflow-x-auto overflow-y-hidden border-b border-[#333]"
           style={{ scrollbarWidth: 'thin', scrollbarColor: '#444 #1e1e1e' }}
         >
           <div
             className="relative h-full"
-            style={{ minWidth: `${(ws.snapshots.length + 1) * 88 + 48}px` }}
+            style={{ minWidth: `${(snapshots.length + 1) * 96 + 48}px` }}
           >
             {/* 横线：从第一个节点圆心到工作区节点圆心 */}
             {ws.snapshots.length > 0 && (
@@ -85,14 +105,14 @@ export const Timeline: React.FC = () => {
                   height: '2px',
                   top: `${NODE_TOP}px`,
                   left: `${24 + 44}px`,
-                  width: `${ws.snapshots.length * 88}px`,
+                  width: `${snapshots.length * 96}px`,
                 }}
               />
             )}
 
             {/* 节点列表 */}
             <div className="absolute inset-0 flex items-start px-6">
-              {ws.snapshots.map((s) => {
+              {snapshots.map((s) => {
                 const c = COLORS[s.kind];
                 const isSelected = viewingNode?.hash === s.hash;
                 const isCurrent = s.hash === headHash;
@@ -102,7 +122,7 @@ export const Timeline: React.FC = () => {
                     key={s.hash}
                     onClick={() => viewNode(s)}
                     title="点击查看此节点的改动"
-                    className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
+                    className="flex flex-col items-center flex-shrink-0 w-[96px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 6}px` }}
                   >
                     {/* 所有快照节点都是圆形，选中时高亮 */}
@@ -120,7 +140,7 @@ export const Timeline: React.FC = () => {
                     />
 
                     {/* 标签 */}
-                    <div className="mt-2 text-center w-[84px]">
+                    <div className="mt-2 text-center w-[92px]">
                       <div className="text-[9px] text-[#555] mb-0.5">{formatTime(s.date)}</div>
                       <div className={`text-[10px] truncate ${isSelected ? 'text-[#569cd6]' : 'text-[#999]'}`}>
                         {shortMsg(s.message)}
@@ -133,6 +153,20 @@ export const Timeline: React.FC = () => {
                       >
                         {isSelected ? '浏览中' : c.label}
                       </div>
+                      <button
+                        onClick={(e) => handleCopy(e, s.hash)}
+                        title={copiedHash === s.hash ? '已复制' : `复制 ${s.hash.slice(0, 7)}`}
+                        className={`mt-1 p-0.5 rounded transition-all ${
+                          copiedHash === s.hash
+                            ? 'opacity-100 text-[#4ec9b0]'
+                            : 'opacity-0 group-hover:opacity-100 text-[#555] hover:text-[#ccc] hover:bg-[#333]'
+                        }`}
+                      >
+                        {copiedHash === s.hash
+                          ? <Check size={9} />
+                          : <Copy size={9} />
+                        }
+                      </button>
                     </div>
                   </button>
                 );
@@ -146,7 +180,7 @@ export const Timeline: React.FC = () => {
                   <button
                     onClick={exitNodeView}
                     title={hasChanges ? `当前工作区：${ws.changes.length} 个未提交改动` : '当前工作区：无改动'}
-                    className="flex flex-col items-center flex-shrink-0 w-[88px] relative z-10 group cursor-pointer"
+                    className="flex flex-col items-center flex-shrink-0 w-[96px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 8}px` }}
                   >
                     <div
@@ -159,7 +193,7 @@ export const Timeline: React.FC = () => {
                           : isSelected ? '0 0 0 2px #66666644' : undefined,
                       }}
                     />
-                    <div className="mt-2 text-center w-[84px]">
+                    <div className="mt-2 text-center w-[92px]">
                       <div className="text-[9px] text-[#555] mb-0.5">现在</div>
                       <div className={`text-[10px] truncate ${hasChanges ? 'text-[#c586c0]' : 'text-[#888]'}`}>
                         {hasChanges ? `${ws.changes.length} 个改动` : '无改动'}
