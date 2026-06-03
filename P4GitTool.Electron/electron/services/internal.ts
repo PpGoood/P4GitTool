@@ -29,6 +29,8 @@ function scopeTargets(scope: string): string[] {
   }
 }
 
+const ROOT_FILES = ['.gitignore', '.gitattributes'];
+
 // -------------------------------------------------------
 // Tag
 // -------------------------------------------------------
@@ -50,12 +52,13 @@ export async function snapshotToMirror(
     log('[ERROR] git read-tree mirror/p4 失败'); return false;
   }
 
-  await git.gitAdd(repo, scopeTargets(scope));
+  await git.gitAdd(repo, [...scopeTargets(scope), ...ROOT_FILES]);
 
   const { stdout: statusOut } = await run('git', ['status', '--porcelain'], repo, true);
   if (!statusOut.trim()) {
     log('[INFO] P4 无新变更');
     await run('git', ['read-tree', 'HEAD'], repo, true);
+    await run('git', ['update-index', '--refresh'], repo, true);
     return true;
   }
 
@@ -73,6 +76,7 @@ export async function snapshotToMirror(
   }
 
   await run('git', ['read-tree', 'HEAD'], repo, true);
+  await run('git', ['update-index', '--refresh'], repo, true);
   log('[OK] P4 快照已更新');
   return true;
 }
@@ -96,6 +100,9 @@ export function writeGitIgnore(repo: string) {
     '*.suo',
     '*.opensdf',
     '*.user',
+    '',
+    '# Claude Code',
+    '.claude/',
     '',
     '# Only track Source/ and Content/Script/',
     '# 先忽略 Content 下所有内容，再用 negation 恢复 Script 子目录',

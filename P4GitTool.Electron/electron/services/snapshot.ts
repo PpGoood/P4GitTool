@@ -56,12 +56,13 @@ export interface SnapshotEntry {
 }
 
 function detectKind(msg: string, tags: string[]): SnapshotKind {
-  // 优先用 tag 判断
+  // 优先用 tag 判断（sync-protect 必须在 sync 前面，否则前缀会误匹配）
   if (tags.some(t => t.startsWith('p4-submit-'))) return 'submit';
-  if (tags.some(t => t.startsWith('p4-sync-'))) return 'sync';
   if (tags.some(t => t.startsWith('p4-sync-protect-'))) return 'sync-protect';
+  if (tags.some(t => t.startsWith('p4-sync-'))) return 'sync';
   // 降级用 commit message
   if (/^sync-protect:/i.test(msg)) return 'sync-protect';
+  if (/^sync:/i.test(msg)) return 'sync';
   if (/^build:/i.test(msg)) return 'other';
   if (/^init:/i.test(msg)) return 'sync';
   return 'manual';

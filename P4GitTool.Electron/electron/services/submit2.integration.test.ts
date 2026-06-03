@@ -5,6 +5,7 @@ import os from 'os';
 import yaml from 'js-yaml';
 import { run } from './runner';
 import { setConfigPath } from './config';
+import { writeGitIgnore } from './internal';
 
 /**
  * submitPrepare 集成测试（git 侧逻辑，不依赖 P4）
@@ -89,6 +90,17 @@ describe('submitPrepare git-side (integration)', () => {
 
     // init: commit 是基准，HEAD == 基准，diff 为空
     expect(candidates).toHaveLength(0);
+  });
+
+  it('生成的 ignore 规则允许追踪 Content/Script 下的 Lua 文件', async () => {
+    writeGitIgnore(repo);
+    fs.mkdirSync(path.join(repo, 'Content', 'Script'), { recursive: true });
+    fs.writeFileSync(path.join(repo, 'Content', 'Script', 'test.lua'), 'local x = 1\n');
+
+    await run('git', ['add', 'Content/Script/test.lua'], repo, true);
+    const { stdout } = await run('git', ['diff', '--cached', '--name-only'], repo, true);
+
+    expect(stdout.split('\n')).toContain('Content/Script/test.lua');
   });
 
   it('Content/Script 路径的文件也被包含在候选中', async () => {

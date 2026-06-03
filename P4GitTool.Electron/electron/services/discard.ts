@@ -26,7 +26,7 @@ export async function discardFile(
     if (!await git.gitCheckoutFile(repo, 'mirror/p4', filepath)) {
       log(`[ERROR] 还原 ${filepath} 失败`); return false;
     }
-    await p4.p4SyncKeep(cfg, stream);
+    await p4.p4SyncKeep(cfg, stream, [filepath]);
     log(`[OK] ${filepath} 已还原到 P4 版本`);
     return true;
   });
@@ -61,7 +61,7 @@ export async function discardHunk(
     if (!await git.applyReversePatch(repo, patch)) {
       log('[ERROR] git apply --reverse 失败'); return false;
     }
-    await p4.p4SyncKeep(cfg, stream);
+    await p4.p4SyncKeep(cfg, stream, [filepath]);
     log(`[OK] ${filepath} 的 hunk #${hunkIndex} 已撤销`);
     return true;
   });
@@ -88,7 +88,7 @@ export async function discardLine(
     if (!await git.applyReversePatch(repo, patch)) {
       log('[ERROR] git apply --reverse 失败'); return false;
     }
-    await p4.p4SyncKeep(cfg, stream);
+    await p4.p4SyncKeep(cfg, stream, [filepath]);
     log(`[OK] ${filepath} 的行改动已撤销`);
     return true;
   });

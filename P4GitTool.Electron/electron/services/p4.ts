@@ -22,15 +22,11 @@ export async function p4Sync(
   const client = sc.client;
   const cwd = sc.root + '/ProjectX';
 
-  if (force) {
-    for (const p of paths) {
-      const { code } = await run('p4', [...p4Args(cfg), '-c', client, 'clean', p], cwd, true);
-      if (code !== 0) return false;
-    }
-  }
-
   for (const p of paths) {
-    const { code, stdout } = await run('p4', [...p4Args(cfg), '-c', client, 'sync', p], cwd, true);
+    const args = [...p4Args(cfg), '-c', client, 'sync'];
+    if (force) args.push('-f');
+    args.push(p);
+    const { code, stdout } = await run('p4', args, cwd, true);
     if (code !== 0) return false;
     if (onLine) {
       const updated = stdout.split('\n').filter(l =>
@@ -150,14 +146,16 @@ export async function p4OpenP4V(
  */
 export async function p4SyncKeep(
   cfg: P4GitConfig,
-  stream: string
+  stream: string,
+  files?: string[]
 ): Promise<boolean> {
   const sc = getStream(cfg, stream);
   if (!sc) return false;
   const cwd = sc.root + '/ProjectX';
+  const targets = files && files.length > 0 ? files : ['...'];
   const { code } = await run(
     'p4',
-    [...p4Args(cfg), '-c', sc.client, 'sync', '-k', '...'],
+    [...p4Args(cfg), '-c', sc.client, 'sync', '-k', ...targets],
     cwd,
     true
   );

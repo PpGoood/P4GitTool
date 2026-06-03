@@ -38,22 +38,28 @@ export async function pull(
     log('[OK] Sync 前保护快照已创建');
   }
 
-  log(`[INFO] 正在从 P4 同步代码 (范围: ${scope}, 模式: ${mode})...`);
-  if (!await p4.p4Sync(cfg, stream, scopePaths(scope), mode === 'force', log)) return false;
+  log(`[INFO] 正在从 P4 同步代码 (范围: ${scope})...`);
+  if (!await p4.p4Sync(cfg, stream, scopePaths(scope), true, log)) return false;
 
   // 更新 mirror/p4（plumbing，不切换分支）
   const commitMsg = `sync: P4 ${stream} ${scope}`;
   if (!await snapshotToMirror(repo, scope, commitMsg, log)) return false;
 
-  // 合并 mirror/p4 -> 当前分支（stream 名）
+  // plumbing merge：不动磁盘文件，只移动分支引用
   log(`[INFO] 正在合并 mirror/p4 → ${curBranchName}...`);
-  if (!await git.gitMerge(repo, 'mirror/p4')) {
-    log('[ERROR] 合并有冲突，请在 Fork 或命令行中手动解决');
+  const merge = await git.plumbingMerge(repo, 'mirror/p4', commitMsg);
+  if (!merge.ok) {
+    if (merge.conflicts && merge.conflicts.length > 0) {
+      log(`[ERROR] 合并有 ${merge.conflicts.length} 个冲突，请在 Fork 或 VSCode 中解决冲突后点击"对齐 Git"`);
+      merge.conflicts.forEach(f => log(`  冲突: ${f}`));
+    } else {
+      log(`[ERROR] 合并失败: ${merge.error}`);
+    }
     return false;
   }
 
-  // 收尾：对齐 P4 have 记录
-  if (!await p4.p4SyncKeep(cfg, stream)) {
+  // 收尾：对齐 P4 have 记录（只对齐本次 sync 的范围）
+  if (!await p4.p4SyncKeep(cfg, stream, scopePaths(scope))) {
     log('[WARN] p4 sync -k 失败，have 记录可能不一致');
   }
 
