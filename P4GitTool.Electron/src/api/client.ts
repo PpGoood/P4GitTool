@@ -103,6 +103,38 @@ export interface P4GitConfig {
   streams: { name: string; client: string; root: string }[];
 }
 
+export type TemplateKind = 'gitignore' | 'gitattributes' | 'claudemd' | 'mcp';
+export type SyncState = 'ok' | 'behind' | 'modified' | 'missing';
+
+export interface SkillEntry {
+  name: string;
+  content: string;
+}
+
+export interface StreamSyncStatus {
+  stream: string;
+  state: SyncState;
+}
+
+export interface TemplatesData {
+  templates: Record<TemplateKind, string>;
+  skills: SkillEntry[];
+  status: StreamSyncStatus[];
+  templatesDir: string;
+}
+
+export interface SyncFileResult {
+  target: string;
+  action: 'written' | 'unchanged' | 'skipped';
+}
+
+export interface SyncStreamResult {
+  stream: string;
+  ok: boolean;
+  files: SyncFileResult[];
+  error?: string;
+}
+
 export type SubmitPrepareReason =
   | 'stream-not-found'
   | 'dirty-workspace'
@@ -185,6 +217,19 @@ export const api = {
     post<{ ok: boolean }>('/checkout-node', { stream, hash }),
   returnLatest: (stream: string, force = false) =>
     post<{ ok: boolean; hasChanges?: boolean; changes?: FileChange[] }>('/return-latest', { stream, force }),
+
+  // 配置模板管理
+  getTemplates: () => get<TemplatesData>('/templates'),
+  saveTemplate: (kind: TemplateKind, content: string) =>
+    post<{ ok: boolean }>('/templates', { kind, content }),
+  saveSkill: (name: string, content: string) =>
+    post<{ ok: boolean }>('/skills', { name, content }),
+  deleteSkill: (name: string) =>
+    post<{ ok: boolean }>('/skills/delete', { name }),
+  syncConfig: (stream?: string) =>
+    post<{ ok: boolean; results: SyncStreamResult[] }>('/sync-config', stream ? { stream } : {}),
+  openTemplatesDir: () =>
+    post<{ ok: boolean }>('/open-templates-dir', {}),
 
   subscribeEvents: (
     onEvent: (e: AppEvent) => void,
