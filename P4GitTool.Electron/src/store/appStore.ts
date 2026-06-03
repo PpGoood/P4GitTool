@@ -81,7 +81,7 @@ interface AppState {
   runInit: () => Promise<void>;
   runPull: (scope?: string, mode?: string) => Promise<void>;
   runAlignGit: () => Promise<void>;
-  runAlignGitContinue: (resolution: 'ours' | 'theirs' | 'manual') => Promise<void>;
+  runAlignGitContinue: (resolution: 'ours' | 'theirs' | 'manual') => Promise<{ resolvedFiles?: string[] } | undefined>;
   runSnapshot: (message: string) => Promise<boolean>;
   runSubmitPrepare: () => Promise<SubmitPrepareResult>;
   runDiscardFile: (filepath: string) => Promise<boolean>;
@@ -300,13 +300,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   runAlignGitContinue: async (resolution) => {
     const s = get().currentStream;
-    if (!s) return;
+    if (!s) return undefined;
     set({ isLoading: true, loadingOp: 'align-git', viewMode: VIEW_NORMAL });
     try {
       const result = await api.alignGitContinue(s, resolution);
       if (result.ok) {
         await get().refreshWorkspace(s);
       }
+      return { resolvedFiles: result.resolvedFiles };
     } finally {
       set({ isLoading: false, loadingOp: null });
     }

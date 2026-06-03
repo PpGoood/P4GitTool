@@ -155,11 +155,13 @@ export const api = {
   alignGit: (stream: string) =>
     post<{ ok: boolean; conflicts?: string[] }>('/align-git', { stream }),
   alignGitContinue: (stream: string, resolution: 'ours' | 'theirs' | 'manual') =>
-    post<{ ok: boolean }>('/align-git-continue', { stream, resolution }),
+    post<{ ok: boolean; resolvedFiles?: string[] }>('/align-git-continue', { stream, resolution }),
   snapshot: (stream: string, message: string) =>
     post<{ ok: boolean }>('/snapshot', { stream, message }),
   submitPrepare: (stream: string) =>
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
+  openInVscode: (stream: string, filepath: string) =>
+    post<{ ok: boolean }>('/open-in-vscode', { stream, filepath }),
 
   discardFile: (stream: string, path: string) =>
     post<{ ok: boolean }>('/discard-file', { stream, path }),
