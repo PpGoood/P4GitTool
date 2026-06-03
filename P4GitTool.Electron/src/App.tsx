@@ -21,6 +21,7 @@ const LOADING_MESSAGES: Record<string, string> = {
   'return-latest': '正在回到最新状态...',
   snapshot: '正在创建快照...',
   'check-update': '正在检查文件版本...',
+  discard: '正在还原文件...',
 };
 
 const App: React.FC = () => {

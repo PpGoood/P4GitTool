@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
+import { api } from '../api/client';
 import { SnapshotDialog } from './SnapshotDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import { P4SyncDialog } from './P4SyncDialog';
@@ -200,10 +201,10 @@ export const FileList: React.FC = () => {
             f={f}
             active={selectedFile === f.path}
             onClick={() => isViewing ? viewNodeSelectFile(f.path) : selectFile(currentStream, f.path)}
-            onContextMenu={!isViewing ? (e) => {
+            onContextMenu={(e) => {
               e.preventDefault();
               setMenu({ x: e.clientX, y: e.clientY, filepath: f.path });
-            } : undefined}
+            }}
           />
         ))}
       </div>
@@ -235,22 +236,33 @@ export const FileList: React.FC = () => {
         </div>
       )}
 
-      {/* Context Menu（只在非历史模式下显示） */}
-      {menu && !isViewing && (
+      {/* Context Menu */}
+      {menu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
           <div
             className="fixed z-50 bg-[#2d2d2d] border border-[#444] rounded py-1 shadow-xl min-w-[160px]"
             style={{ left: menu.x, top: menu.y }}
           >
+            {!isViewing && (
+              <button
+                onClick={() => {
+                  setDiscardFileConfirm(menu.filepath);
+                  setMenu(null);
+                }}
+                className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
+              >
+                还原此文件到上个快照
+              </button>
+            )}
             <button
               onClick={() => {
-                setDiscardFileConfirm(menu.filepath);
+                if (currentStream) api.openInVscode(currentStream, menu.filepath);
                 setMenu(null);
               }}
               className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
             >
-              还原此文件到上个快照
+              在 VSCode 中打开
             </button>
           </div>
         </>
@@ -307,9 +319,10 @@ export const FileList: React.FC = () => {
         detail="此操作不可撤销，文件内容将恢复到上一个快照时的状态。"
         confirmText="还原"
         confirmVariant="danger"
-        onConfirm={async () => {
-          if (discardFileConfirm) await runDiscardFile(discardFileConfirm);
+        onConfirm={() => {
+          const target = discardFileConfirm;
           setDiscardFileConfirm(null);
+          if (target) void runDiscardFile(target);
         }}
         onClose={() => setDiscardFileConfirm(null)}
       />

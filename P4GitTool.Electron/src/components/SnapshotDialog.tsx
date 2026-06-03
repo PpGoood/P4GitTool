@@ -16,12 +16,11 @@ export const SnapshotDialog: React.FC<Props> = ({ open, onClose }) => {
   const submit = async () => {
     if (!message.trim()) return;
     setSubmitting(true);
-    const ok = await runSnapshot(message.trim());
+    const msg = message.trim();
+    setMessage('');
+    onClose();
+    await runSnapshot(msg);
     setSubmitting(false);
-    if (ok) {
-      setMessage('');
-      onClose();
-    }
   };
 
   return (

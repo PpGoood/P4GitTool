@@ -345,38 +345,54 @@ export const useAppStore = create<AppState>((set, get) => ({
   runDiscardFile: async (filepath) => {
     const s = get().currentStream;
     if (!s) return false;
-    const { ok } = await api.discardFile(s, filepath);
-    if (ok) {
-      await get().refreshChanges(s);
-      // 如果当前选中的就是这个文件，清除 diff
-      const ws = get().workspaces[s];
-      if (ws?.selectedFile === filepath) {
-        get().patchWorkspace(s, { selectedFile: null, diff: null });
+    if (get().isLoading) return false;
+    set({ isLoading: true, loadingOp: 'discard' });
+    try {
+      const { ok } = await api.discardFile(s, filepath);
+      if (ok) {
+        await get().refreshChanges(s);
+        const ws = get().workspaces[s];
+        if (ws?.selectedFile === filepath) {
+          get().patchWorkspace(s, { selectedFile: null, diff: null });
+        }
       }
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
     }
-    return ok;
   },
 
   runDiscardHunk: async (filepath, hunkIndex) => {
     const s = get().currentStream;
     if (!s) return false;
-    const { ok } = await api.discardHunk(s, filepath, hunkIndex);
-    if (ok) {
-      // 只刷新 changes 和当前文件的 diff，不刷新 snapshots/status
-      await Promise.all([
-        get().refreshChanges(s),
-        get().refreshDiff(s, filepath),
-      ]);
+    if (get().isLoading) return false;
+    set({ isLoading: true, loadingOp: 'discard' });
+    try {
+      const { ok } = await api.discardHunk(s, filepath, hunkIndex);
+      if (ok) {
+        await Promise.all([
+          get().refreshChanges(s),
+          get().refreshDiff(s, filepath),
+        ]);
+      }
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
     }
-    return ok;
   },
 
   runDiscardLine: async (filepath, hunkIndex, lineIndex) => {
     const s = get().currentStream;
     if (!s) return false;
-    const { ok } = await api.discardLine(s, filepath, hunkIndex, lineIndex);
-    if (ok) await get().refreshWorkspace(s);
-    return ok;
+    if (get().isLoading) return false;
+    set({ isLoading: true, loadingOp: 'discard' });
+    try {
+      const { ok } = await api.discardLine(s, filepath, hunkIndex, lineIndex);
+      if (ok) await get().refreshWorkspace(s);
+      return ok;
+    } finally {
+      set({ isLoading: false, loadingOp: null });
+    }
   },
 
   runRollback: async (hash) => {
