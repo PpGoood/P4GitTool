@@ -18,29 +18,45 @@ export async function alignGit(
   if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
   const repo = repoPath(rootDir, stream);
 
-  log('[INFO] 对齐 Git 记录（不下载文件）...');
+  log('[INFO] 对齐 Git 记录...');
 
-  // p4 sync -k 更新 have 记录
-  if (!await p4.p4SyncKeep(cfg, stream)) {
-    log('[WARN] p4 sync -k 失败，have 记录可能不一致');
-  }
-
-  // 把磁盘最新状态写入 mirror/p4
+  // 把磁盘最新状态写入 mirror/p4（plumbing，不动工作区）
   const commitMsg = `sync: align git with P4 ${new Date().toISOString().slice(0, 16)}`;
   if (!await snapshotToMirror(repo, 'all', commitMsg, log)) {
     log('[ERROR] 更新 mirror/p4 失败'); return { ok: false };
   }
 
-  // merge mirror/p4 → dev
-  if (!await git.gitMerge(repo, 'mirror/p4')) {
-    // merge 失败，获取冲突文件列表
-    const conflicts = await git.conflictFiles(repo);
-    log(`[ERROR] 发现 ${conflicts.length} 个冲突文件，请解决后点击"继续对齐"`);
-    conflicts.forEach(f => log(`  冲突: ${f}`));
-    return { ok: false, conflicts };
+  // 3. 直接把 dev 指向 mirror/p4（对齐 = 以磁盘为准，不做 merge）
+  const curBranch = await git.currentBranch(repo);
+  if (!curBranch) { log('[ERROR] 无法获取当前分支'); return { ok: false }; }
+
+  const mirrorHash = await git.revParse(repo, 'mirror/p4');
+  if (!mirrorHash) { log('[ERROR] 无法获取 mirror/p4 HEAD'); return { ok: false }; }
+
+  const devHash = await git.revParse(repo, 'HEAD');
+
+  // 如果 dev 和 mirror/p4 已经一致，不需要操作
+  if (devHash === mirrorHash) {
+    log('[INFO] dev 已与 mirror/p4 一致，无需对齐');
+  } else {
+    // 创建 merge commit 保留历史关系，但 tree 使用 mirror/p4 的（即磁盘当前状态）
+    const mirrorTree = await git.revParse(repo, 'mirror/p4^{tree}');
+    const { stdout: commitOut } = await run(
+      'git', ['commit-tree', mirrorTree, '-p', devHash, '-p', mirrorHash, '-m', commitMsg],
+      repo, true
+    );
+    const newCommit = commitOut.trim();
+    if (!newCommit) { log('[ERROR] commit-tree 失败'); return { ok: false }; }
+
+    if (!await git.updateRef(repo, curBranch, newCommit)) {
+      log('[ERROR] update-ref 失败'); return { ok: false };
+    }
+    await run('git', ['read-tree', newCommit], repo, true);
   }
 
-  // 打 p4-sync tag，时间线显示蓝色节点
+  await run('git', ['update-index', '--refresh'], repo, true);
+
+  // 打 p4-sync tag
   await gitTag(repo, 'p4-sync');
 
   log('[OK] Git 已对齐，mirror/p4 和 dev 均已更新');
@@ -52,7 +68,7 @@ export async function alignGit(
  */
 export async function alignGitContinue(
   rootDir: string, stream: string, resolution: 'ours' | 'theirs' | 'manual', log: LogFn
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; resolvedFiles?: string[] }> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
   if (!sc) { log(`[ERROR] Stream '${stream}' 未配置`); return { ok: false }; }
@@ -97,5 +113,5 @@ export async function alignGitContinue(
   await gitTag(repo, 'p4-sync');
 
   log('[OK] 冲突已解决，Git 对齐完成');
-  return { ok: true };
+  return { ok: true, resolvedFiles: conflicts };
 }
