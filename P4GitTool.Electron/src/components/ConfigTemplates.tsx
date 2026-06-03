@@ -135,13 +135,17 @@ export const TemplateEditor: React.FC<{
         <p className="text-[11px] text-[#777] mt-1 leading-relaxed">{desc}</p>
       </div>
       <PathBar dir={data.templatesDir} />
-      <div className="flex-1 p-5 overflow-hidden">
+      <div className="flex-1 p-5 overflow-hidden flex flex-col">
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           spellCheck={false}
-          className="w-full h-full bg-[#1a1a1a] border border-[#3e3e42] rounded p-3 font-mono text-[11.5px] leading-relaxed text-[#c5c5c5] resize-none outline-none focus:border-[#007acc]"
+          className="flex-1 bg-[#1a1a1a] border border-[#3e3e42] rounded p-3 font-mono text-[11.5px] leading-relaxed text-[#c5c5c5] resize-none outline-none focus:border-[#007acc]"
         />
+        <div className="mt-3 px-3 py-2.5 bg-[#2a2d2e] border-l-[3px] border-[#007acc] rounded text-[11px] text-[#aaa] leading-relaxed flex items-start gap-2 shrink-0">
+          <Lightbulb size={14} className="text-[#4aa3df] shrink-0 mt-0.5" />
+          <span>给 agent 用：不必点同步按钮，运行 workspaces 目录下的 <code className="bg-[#1a1a1a] px-1.5 py-0.5 rounded text-[#ce9178] font-mono">同步配置.bat</code> 即可把规则/技能/MCP 分发到所有工作区。</span>
+        </div>
       </div>
       <SyncResult result={result} />
       <SyncFooter status={data.status} onSave={save} onSync={sync} saving={saving} syncing={syncing} />
