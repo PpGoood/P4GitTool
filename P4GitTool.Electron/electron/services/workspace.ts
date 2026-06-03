@@ -3,7 +3,8 @@ import fs from 'fs';
 import { loadConfig, repoPath } from './config';
 import * as git from './git';
 import { run } from './runner';
-import { LogFn, ensureJunction, writeGitIgnore, writeGitAttributes } from './internal';
+import { LogFn, ensureJunction } from './internal';
+import { ensureTemplates, syncConfig, writeInitIgnoreFiles } from './templates';
 
 // -------------------------------------------------------
 // Init
@@ -11,6 +12,7 @@ import { LogFn, ensureJunction, writeGitIgnore, writeGitAttributes } from './int
 
 export async function init(rootDir: string, log: LogFn): Promise<boolean> {
   const cfg = loadConfig();
+  ensureTemplates(rootDir);
 
   for (const sc of cfg.streams) {
     const stream = sc.name;
@@ -30,8 +32,7 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
       await run('git', ['config', 'core.symlinks', 'false'], repo, true);
       await run('git', ['config', 'i18n.logOutputEncoding', 'utf-8'], repo, true);
       await run('git', ['config', 'i18n.commitEncoding', 'utf-8'], repo, true);
-      writeGitIgnore(repo);
-      writeGitAttributes(repo);
+      writeInitIgnoreFiles(rootDir, repo);
       await run('git', ['add', '.gitignore', '.gitattributes'], repo, true);
       await run('git', ['commit', '-m', `init: ${stream} workspace`], repo, true);
     } else {
@@ -79,6 +80,14 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
       await run('git', ['checkout', '-b', stream], repo, true);
     } else {
       await git.gitCheckout(repo, stream);
+    }
+
+    // 同步 Agent 规则(CLAUDE.md)、MCP、技能到工作区（.gitignore/.gitattributes 已在首次提交时写入）
+    try {
+      syncConfig(rootDir, stream);
+      log(`[OK] ${stream} Agent 配置已同步`);
+    } catch (e: any) {
+      log(`[WARN] ${stream} Agent 配置同步失败: ${e.message}`);
     }
 
     log(`[OK] ${stream} 初始化完成，当前分支: ${stream}`);

@@ -12,6 +12,8 @@ import { createWorkspaceRouter } from './routes/workspace';
 import { createOperationsRouter } from './routes/operations';
 import { createDiscardRouter } from './routes/discard';
 import { createRollbackRouter } from './routes/rollback';
+import { createTemplatesRouter } from './routes/templates';
+import { ensureTemplates, writeSyncBat } from './services/templates';
 
 async function findAvailablePort(preferred = 3001): Promise<number> {
   // 先尝试固定端口 3001，失败再随机
@@ -102,6 +104,10 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   console.log('[P4Git] rootDir:', currentRootDir);
   console.log('[P4Git] config path:', path.join(currentRootDir, 'p4git.yaml'));
 
+  // 确保配置模板存在，并生成 agent 可调用的同步 bat
+  ensureTemplates(currentRootDir);
+  writeSyncBat(currentRootDir, port);
+
   // 装配 Express
   const app = express();
   app.use(express.json({ limit: '2mb' }));
@@ -157,6 +163,7 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   app.use('/api', createOperationsRouter(() => currentRootDir));
   app.use('/api', createDiscardRouter(() => currentRootDir));
   app.use('/api', createRollbackRouter(() => currentRootDir));
+  app.use('/api', createTemplatesRouter(() => currentRootDir));
 
   // 文件监听 → 总线事件
   watcher = new WorkspaceWatcher({ debounceMs: 500 });
