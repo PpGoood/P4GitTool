@@ -74,10 +74,10 @@ export function createTemplatesRouter(getRootDir: () => string): Router {
   });
 
   // 同步配置到工作区（可指定 stream，不传则全部）
-  router.post('/sync-config', (req, res) => {
+  router.post('/sync-config', async (req, res) => {
     const { stream } = req.body ?? {};
     try {
-      const results = tpl.syncConfig(getRootDir(), stream);
+      const results = await tpl.syncConfig(getRootDir(), stream);
       res.json({ ok: results.every(r => r.ok), results });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

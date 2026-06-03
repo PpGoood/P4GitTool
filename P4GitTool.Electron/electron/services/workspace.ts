@@ -84,7 +84,7 @@ export async function init(rootDir: string, log: LogFn): Promise<boolean> {
 
     // 同步 Agent 规则(CLAUDE.md)、MCP、技能到工作区（.gitignore/.gitattributes 已在首次提交时写入）
     try {
-      syncConfig(rootDir, stream);
+      await syncConfig(rootDir, stream);
       log(`[OK] ${stream} Agent 配置已同步`);
     } catch (e: any) {
       log(`[WARN] ${stream} Agent 配置同步失败: ${e.message}`);

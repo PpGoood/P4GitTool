@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { loadConfig, repoPath } from './config';
+import { run } from './runner';
 
 // -------------------------------------------------------
 // 配置模板系统
@@ -23,13 +24,17 @@ interface TemplateMeta {
   targetFile: string;
   /** 是否用标记区合并（false = 整体覆盖） */
   useMarker: boolean;
+  /** 是否被 Git 追踪（true = 仓库文件，同步后需提交到 dev+mirror/p4） */
+  tracked: boolean;
 }
 
 export const TEMPLATE_METAS: TemplateMeta[] = [
-  { kind: 'gitignore', templateFile: 'gitignore.tmpl', targetFile: '.gitignore', useMarker: true },
-  { kind: 'gitattributes', templateFile: 'gitattributes.tmpl', targetFile: '.gitattributes', useMarker: false },
-  { kind: 'claudemd', templateFile: 'CLAUDE.md.tmpl', targetFile: 'CLAUDE.md', useMarker: true },
-  { kind: 'mcp', templateFile: 'mcp.json.tmpl', targetFile: '.mcp.json', useMarker: false },
+  // .gitignore/.gitattributes 是被追踪的仓库文件，整体覆盖 + 同步后提交双分支
+  { kind: 'gitignore', templateFile: 'gitignore.tmpl', targetFile: '.gitignore', useMarker: false, tracked: true },
+  { kind: 'gitattributes', templateFile: 'gitattributes.tmpl', targetFile: '.gitattributes', useMarker: false, tracked: true },
+  // CLAUDE.md/.mcp.json 被 .gitignore 忽略，不追踪，写盘即可
+  { kind: 'claudemd', templateFile: 'CLAUDE.md.tmpl', targetFile: 'CLAUDE.md', useMarker: true, tracked: false },
+  { kind: 'mcp', templateFile: 'mcp.json.tmpl', targetFile: '.mcp.json', useMarker: false, tracked: false },
 ];
 
 // -------------------------------------------------------
@@ -254,13 +259,15 @@ export interface SyncStreamResult {
 }
 
 /** 把模板 + 技能同步到单个工作区 */
-function syncStream(rootDir: string, stream: string): SyncStreamResult {
+async function syncStream(rootDir: string, stream: string): Promise<SyncStreamResult> {
   const repo = repoPath(rootDir, stream);
   const files: SyncFileResult[] = [];
   try {
     if (!fs.existsSync(repo)) {
       return { stream, ok: false, files: [], error: '工作区目录不存在，请先 init' };
     }
+
+    const trackedChanged: string[] = [];
 
     for (const meta of TEMPLATE_METAS) {
       const tmpl = readTemplate(rootDir, meta.kind);
@@ -272,6 +279,7 @@ function syncStream(rootDir: string, stream: string): SyncStreamResult {
       } else {
         fs.writeFileSync(targetPath, next, 'utf-8');
         files.push({ target: meta.targetFile, action: 'written' });
+        if (meta.tracked) trackedChanged.push(meta.targetFile);
       }
     }
 
@@ -292,19 +300,86 @@ function syncStream(rootDir: string, stream: string): SyncStreamResult {
       }
     }
 
+    // 追踪文件有改动时，提交到 dev + mirror/p4 双分支
+    if (trackedChanged.length > 0) {
+      await commitTrackedFiles(repo, trackedChanged, stream);
+    }
+
     return { stream, ok: true, files };
   } catch (e: any) {
     return { stream, ok: false, files, error: e.message };
   }
 }
 
+/**
+ * 把追踪文件(.gitignore/.gitattributes)提交到 dev 和 mirror/p4 双分支。
+ * 用 plumbing 命令，不影响工作区其他改动。
+ */
+async function commitTrackedFiles(repo: string, filePaths: string[], stream: string): Promise<void> {
+  const msg = `chore: 更新工具配置文件 (${filePaths.join(', ')})`;
+
+  // 1. 提交到 dev（当前分支）：只 add 这几个文件，部分提交
+  await run('git', ['add', '--', ...filePaths], repo, true);
+  await run('git', ['commit', '-m', msg, '--', ...filePaths], repo, true);
+
+  // 2. 提交到 mirror/p4：用 plumbing 基于 mirror/p4 HEAD 创建新 commit
+  // 思路：读 mirror/p4 的 tree 到索引，把新文件加入索引，write-tree，commit-tree
+  const { stdout: mirrorHash } = await run('git', ['rev-parse', 'mirror/p4'], repo, true);
+  const mirrorRef = mirrorHash.trim();
+  if (!mirrorRef) return;
+
+  // 用临时环境变量 GIT_INDEX_FILE 创建临时索引，避免污染工作区索引
+  const tmpIndex = path.join(repo, '.git', 'tmp-sync-index');
+  try {
+    // 把 mirror/p4 的 tree 读入临时索引
+    await run('git', ['read-tree', '--index-output=' + tmpIndex, 'mirror/p4'], repo, true);
+
+    // 把磁盘上的新文件加入临时索引
+    for (const fp of filePaths) {
+      const { stdout: blobOut } = await run('git', ['hash-object', '-w', fp], repo, true);
+      const blobHash = blobOut.trim();
+      if (blobHash) {
+        // update-index 需要用 GIT_INDEX_FILE 环境变量
+        await run('git', [
+          '--work-tree=.', 'update-index', '--add', '--cacheinfo', `100644,${blobHash},${fp}`
+        ], repo, true);
+      }
+    }
+
+    // 但上面的 update-index 用的是默认索引... 换一种更安全的方式：
+    // 直接基于 dev 的最新 commit（刚提交的，已包含新 .gitignore）取 tree
+    const { stdout: devTreeOut } = await run('git', ['rev-parse', 'HEAD^{tree}'], repo, true);
+    const devTree = devTreeOut.trim();
+
+    // 基于 dev 的 tree 创建 mirror/p4 的新 commit（这样 mirror/p4 的 .gitignore 和 dev 一致）
+    const { stdout: commitOut } = await run(
+      'git', ['commit-tree', devTree, '-p', mirrorRef, '-m', msg], repo, true
+    );
+    const newCommit = commitOut.trim();
+    if (newCommit) {
+      await run('git', ['update-ref', 'refs/heads/mirror/p4', newCommit], repo, true);
+    }
+  } finally {
+    // 清理临时索引
+    try { fs.unlinkSync(tmpIndex); } catch {}
+  }
+
+  // 恢复工作区索引到 HEAD（确保 git status 干净）
+  await run('git', ['read-tree', 'HEAD'], repo, true);
+  await run('git', ['update-index', '--refresh'], repo, true);
+}
+
 /** 同步到所有工作区（或指定 stream） */
-export function syncConfig(rootDir: string, onlyStream?: string): SyncStreamResult[] {
+export async function syncConfig(rootDir: string, onlyStream?: string): Promise<SyncStreamResult[]> {
   const cfg = loadConfig();
   const streams = onlyStream
     ? cfg.streams.filter(s => s.name === onlyStream)
     : cfg.streams;
-  return streams.map(s => syncStream(rootDir, s.name));
+  const results: SyncStreamResult[] = [];
+  for (const s of streams) {
+    results.push(await syncStream(rootDir, s.name));
+  }
+  return results;
 }
 
 /**
