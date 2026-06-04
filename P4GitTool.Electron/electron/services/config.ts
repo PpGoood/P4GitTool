@@ -12,6 +12,7 @@ export interface P4GitConfig {
   p4_port: string;
   p4_user: string;
   workspaces_dir: string;  // Git 仓库存放目录，agent 在这里工作
+  docs_dir?: string;       // 知识库目录，留空=不启用知识库
   streams: StreamConfig[];
 }
 
@@ -19,6 +20,7 @@ const DEFAULT_CONFIG: P4GitConfig = {
   p4_port: '',
   p4_user: '',
   workspaces_dir: '',
+  docs_dir: '',
   streams: [],
 };
 
@@ -27,6 +29,7 @@ function cloneDefaultConfig(): P4GitConfig {
     p4_port: DEFAULT_CONFIG.p4_port,
     p4_user: DEFAULT_CONFIG.p4_user,
     workspaces_dir: DEFAULT_CONFIG.workspaces_dir,
+    docs_dir: DEFAULT_CONFIG.docs_dir,
     streams: [],
   };
 }

@@ -2,6 +2,29 @@ import path from 'path';
 import fs from 'fs';
 import { loadConfig, repoPath } from './config';
 import { run } from './runner';
+import { docsDir } from './docs';
+
+/**
+ * 知识库启用时，给工作区 CLAUDE.md 追加的文档产出规则段落。
+ * 带真实知识库路径 + 当前分支子目录；未启用返回空字符串。
+ */
+function docsRuleSection(stream: string): string {
+  const dir = docsDir();
+  if (!dir) return '';
+  return [
+    '',
+    '',
+    '## 文档产出（知识库）',
+    `- 所有产出的文档写入知识库：\`${dir}\``,
+    `- 技术方案 → \`${dir}\\技术方案\\${stream}\\\``,
+    `- Bug 分析/修复 → \`${dir}\\Bug\\${stream}\\\``,
+    `- 跨对话上下文 → \`${dir}\\agent上下文\\\``,
+    `- 通用规范 → \`${dir}\\知识库\\\``,
+    '- 文件名用 `日期-主题.md`，开头带 frontmatter（类型/功能/分支/日期/标签）',
+    `- 产出后更新 \`${dir}\\index.md\` 和 \`${dir}\\log.md\``,
+    `- 详细规范见 \`${dir}\\CLAUDE.md\``,
+  ].join('\n');
+}
 
 // -------------------------------------------------------
 // 配置模板系统
@@ -270,7 +293,11 @@ async function syncStream(rootDir: string, stream: string): Promise<SyncStreamRe
     const trackedChanged: string[] = [];
 
     for (const meta of TEMPLATE_METAS) {
-      const tmpl = readTemplate(rootDir, meta.kind);
+      let tmpl = readTemplate(rootDir, meta.kind);
+      // CLAUDE.md：若启用知识库，注入文档产出规则（带真实路径 + 当前分支子目录）
+      if (meta.kind === 'claudemd') {
+        tmpl = tmpl + docsRuleSection(stream);
+      }
       const targetPath = path.join(repo, meta.targetFile);
       const existing = fs.existsSync(targetPath) ? fs.readFileSync(targetPath, 'utf-8') : null;
       const next = meta.useMarker ? mergeWithMarker(tmpl, existing) : tmpl.trimEnd() + '\n';
