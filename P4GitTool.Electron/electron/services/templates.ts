@@ -16,13 +16,13 @@ function docsRuleSection(stream: string): string {
     '',
     '## 文档产出（知识库）',
     `- 所有产出的文档写入知识库：\`${dir}\``,
-    `- 技术方案 → \`${dir}\\技术方案\\${stream}\\\``,
-    `- Bug 分析/修复 → \`${dir}\\Bug\\${stream}\\\``,
-    `- 跨对话上下文 → \`${dir}\\agent上下文\\\``,
-    `- 通用规范 → \`${dir}\\知识库\\\``,
-    '- 文件名用 `日期-主题.md`，开头带 frontmatter（类型/功能/分支/日期/标签）',
+    `- 技术方案 → \`${dir}\\tech-design\\${stream}\\\``,
+    `- Bug 分析/修复 → \`${dir}\\bugs\\${stream}\\\``,
+    `- 跨对话上下文 → \`${dir}\\agent-context\\\``,
+    `- 通用规范 → \`${dir}\\knowledge\\\``,
+    '- 文件名用 `日期-主题.md`（中文），开头带 frontmatter（类型/功能/分支/日期/标签）',
     `- 产出后更新 \`${dir}\\index.md\` 和 \`${dir}\\log.md\``,
-    `- 详细规范见 \`${dir}\\CLAUDE.md\``,
+    `- 详细规范见 \`${dir}\\0-README.md\` 和 \`${dir}\\CLAUDE.md\``,
   ].join('\n');
 }
 
