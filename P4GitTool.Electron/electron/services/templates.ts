@@ -111,6 +111,10 @@ const DEFAULT_CLAUDEMD = [
   '- 只 git add 自己本次改过的文件，不要 git add -A（避免和其他 agent 的改动混在一起）',
   '- 提交信息格式：type: 中文描述（type 取 feat/fix/refactor/perf/chore/docs）',
   '',
+  '## 代码格式',
+  '- 本项目统一用 LF 换行。修改代码时一律按 LF 写入，不要保留或产生 CRLF',
+  '- 即使原文件是 CRLF，编辑后也应输出 LF（项目规范要求 LF，CRLF 是误提交）',
+  '',
   '## P4 用户',
   '- P4 用户名以 p4git.yaml 配置为准，不要用 Windows 登录名推断',
 ].join('\n');
