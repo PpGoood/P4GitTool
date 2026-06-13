@@ -1,6 +1,7 @@
 import React from 'react';
-import { RefreshCcw, Settings } from 'lucide-react';
+import { RefreshCcw, Settings, Bot } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
+import { api } from '../api/client';
 
 interface Props {
   onOpenConfig: () => void;
@@ -50,6 +51,13 @@ export const TabBar: React.FC<Props> = ({ onOpenConfig }) => {
       </div>
 
       <div className="ml-auto flex gap-1 mr-[138px]" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <button
+          onClick={() => currentStream && api.openClaude(currentStream)}
+          title="在当前工作区打开 Claude（恢复历史对话）"
+          className="w-7 h-7 flex items-center justify-center text-[#888] hover:text-[#ccc] hover:bg-[#3c3c3c] rounded"
+        >
+          <Bot size={15} />
+        </button>
         <button
           onClick={() => currentStream && refreshWorkspace(currentStream)}
           title="刷新"

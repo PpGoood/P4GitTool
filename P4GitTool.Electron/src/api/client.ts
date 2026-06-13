@@ -195,6 +195,8 @@ export const api = {
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
   openInVscode: (stream: string, filepath: string) =>
     post<{ ok: boolean }>('/open-in-vscode', { stream, filepath }),
+  openClaude: (stream: string) =>
+    post<{ ok: boolean }>('/open-claude', { stream }),
 
   discardFile: (stream: string, path: string) =>
     post<{ ok: boolean }>('/discard-file', { stream, path }),

@@ -85,5 +85,21 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     res.json({ ok: true });
   });
 
+  // 在新终端窗口里、对应 git 工作区下打开 claude -r（恢复历史对话，交互式选择）
+  router.post('/open-claude', async (req, res) => {
+    const { stream } = req.body ?? {};
+    if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
+    const repo = repoPath(getRootDir(), stream);
+    // start 拉起新 cmd 窗口，cd 到工作区后跑 claude -r；/k 保持窗口打开供交互
+    // 窗口标题用 "P4Git Claude - <stream>"
+    const proc = spawn(
+      'cmd',
+      ['/c', 'start', `P4Git Claude - ${stream}`, 'cmd', '/k', `cd /d "${repo}" && claude -r`],
+      { detached: true, stdio: 'ignore', windowsHide: false }
+    );
+    proc.unref();
+    res.json({ ok: true });
+  });
+
   return router;
 }
