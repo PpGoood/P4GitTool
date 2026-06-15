@@ -90,12 +90,13 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     const { stream } = req.body ?? {};
     if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
     const repo = repoPath(getRootDir(), stream);
-    // start 拉起新 cmd 窗口，cd 到工作区后跑 claude -r；/k 保持窗口打开供交互
-    // 窗口标题用 "P4Git Claude - <stream>"
+    // 用 cwd 直接把新进程工作目录设为 git 工作区，内层只跑 claude -r，
+    // 避免 cd + && 在外层 cmd 被错误解析（曾导致"语法不正确"）。
+    // start 第二参数为空标题，防止把 'cmd' 当成窗口标题。
     const proc = spawn(
       'cmd',
-      ['/c', 'start', `P4Git Claude - ${stream}`, 'cmd', '/k', `cd /d "${repo}" && claude -r`],
-      { detached: true, stdio: 'ignore', windowsHide: false }
+      ['/c', 'start', `P4Git Claude - ${stream}`, 'cmd', '/k', 'claude', '-r'],
+      { cwd: repo, detached: true, stdio: 'ignore', windowsHide: false }
     );
     proc.unref();
     res.json({ ok: true });
