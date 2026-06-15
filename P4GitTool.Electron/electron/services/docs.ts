@@ -30,6 +30,7 @@ const SKELETON_DIRS = [
   'knowledge/工作流',
   'knowledge/引擎',
   'knowledge/项目功能',
+  'projects',
   'attachments',
 ];
 
@@ -54,12 +55,14 @@ const DOCS_CLAUDE_MD = `---
 | \`tech-design/{分支}/{功能}/\` | 功能开发方案、协议、配表、策划原文 | 按功能分文件夹，每个功能夹含一份 \`context.md\` |
 | \`bugs/{分支}/{功能}/\` | 问题分析、根因排查、修复方案 | 按功能分文件夹，每个功能夹含一份 \`context.md\` |
 | \`knowledge/{工作流|引擎|项目功能}/\` | 通用规范、工具指南、引擎知识 | 按这三类分，不绑定具体功能 |
+| \`projects/{项目名}/\` | 独立于本项目的其他项目（构想/设计/计划） | 每个项目一个文件夹 |
 | \`attachments/\` | 图片、截图 | 平铺 |
 
 **落盘判断**：
 - 写功能方案 → \`tech-design/{当前分支}/{功能名}/\`
 - 写 bug 分析/修复 → \`bugs/{当前分支}/{功能名}/\`
 - 通用规范/指南 → \`knowledge/工作流|引擎|项目功能/\`
+- 写独立新项目（不属于本项目的拓展/构想）→ \`projects/{项目名}/\`
 
 **功能文件夹规则**：
 - 同一功能在 tech-design 和 bugs 里用**同名文件夹**（如都叫 \`制造系统\`），互不混淆
@@ -150,7 +153,8 @@ const DOCS_INDEX_MD = `---
 
 ### 项目功能
 
-## 知识库 / 通用规范 (knowledge)
+## 额外项目 (projects)
+<!-- 独立于本项目的其他项目，每个项目一个子文件夹 -->
 `;
 
 const DOCS_LOG_MD = `---
@@ -199,6 +203,7 @@ const DOCS_README_MD = `# 0 · 请先读我（知识库使用说明）
 | \`tech-design/{分支}/{功能}/\` | 该功能的技术方案、协议、配表、策划原文 + 一份 \`context.md\` |
 | \`bugs/{分支}/{功能}/\` | 该功能的 bug 分析、根因、修复 + 一份 \`context.md\` |
 | \`knowledge/{工作流|引擎|项目功能}/\` | 通用规范、工具指南、引擎知识 |
+| \`projects/{项目名}/\` | 独立于本项目的其他项目（构想/设计/计划） |
 | \`attachments/\` | 图片、截图 |
 
 - 同一功能在 tech-design 和 bugs 用**同名文件夹**（如都叫 \`制造系统\`）
@@ -256,6 +261,12 @@ const FOLDER_READMES: Record<string, string> = {
 放：通用规范、工具指南、引擎知识，不绑定具体功能。
 - 分三类子文件夹：\`工作流/\`、\`引擎/\`、\`项目功能/\`
 - 稳定规范可不带日期；frontmatter 类型: 知识
+`,
+  'projects': `# projects · 额外项目
+
+放：独立于本项目的其他项目（构想/设计/开发计划）。
+- 和本项目的 tech-design/bugs 区分：这里是借鉴经验做的别的项目
+- 每个项目一个子文件夹；frontmatter 类型用 项目构想/技术方案 等
 `,
   'attachments': `# attachments · 附件
 
