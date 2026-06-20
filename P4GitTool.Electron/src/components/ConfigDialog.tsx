@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Settings, X, Plus, Trash2, Activity, Ban, ClipboardList, Zap, Link2, BookOpen } from 'lucide-react';
+import { Settings, X, Plus, Trash2, Activity, Ban, ClipboardList, Zap, Link2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { api, P4GitConfig, TemplatesData } from '../api/client';
 import { TemplateEditor, SkillsEditor } from './ConfigTemplates';
@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Category = 'conn' | 'gitignore' | 'claudemd' | 'skills' | 'mcp' | 'docs';
+type Category = 'conn' | 'gitignore' | 'claudemd' | 'skills' | 'mcp';
 
 const NAV: { key: Category; label: string; icon: React.ReactNode; group: string }[] = [
   { key: 'conn', label: '连接配置', icon: <Activity size={15} />, group: '连接' },
@@ -17,7 +17,6 @@ const NAV: { key: Category; label: string; icon: React.ReactNode; group: string 
   { key: 'claudemd', label: 'Agent 规则', icon: <ClipboardList size={15} />, group: '' },
   { key: 'skills', label: '技能 Skills', icon: <Zap size={15} />, group: '' },
   { key: 'mcp', label: 'MCP 服务', icon: <Link2 size={15} />, group: '' },
-  { key: 'docs', label: '知识库', icon: <BookOpen size={15} />, group: '' },
 ];
 
 export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
@@ -92,8 +91,7 @@ export const ConfigDialog: React.FC<Props> = ({ open, onClose }) => {
                 title="MCP 服务 (.mcp.json)"
                 desc="项目级 MCP 配置，同步后写入每个工作区。例如配好的 P4 MCP server。" />
             )}
-            {cat === 'docs' && <DocsConfig />}
-            {(cat !== 'conn' && cat !== 'docs' && !templates) && (
+            {(cat !== 'conn' && !templates) && (
               <div className="flex-1 flex items-center justify-center text-[#666] text-[12px]">加载中...</div>
             )}
           </div>
@@ -183,100 +181,6 @@ const ConnectionConfig: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           {saving ? '保存中...' : '保存'}
         </button>
         <button onClick={onClose} className="flex-1 bg-[#3c3c3c] hover:bg-[#4a4a4a] text-[#cccccc] text-xs py-1.5 rounded transition-colors">取消</button>
-      </div>
-    </div>
-  );
-};
-
-// ===== 知识库配置（可选功能：docs_dir 为空=关闭） =====
-const DEFAULT_DOCS_DIR = 'D:\\work\\p4git\\docs';
-
-const DocsConfig: React.FC = () => {
-  const config = useAppStore((s) => s.config);
-  const saveConfig = useAppStore((s) => s.saveConfig);
-
-  const initialDir = config?.docs_dir ?? '';
-  const [enabled, setEnabled] = useState(!!initialDir.trim());
-  const [dir, setDir] = useState(initialDir || DEFAULT_DOCS_DIR);
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState('');
-
-  useEffect(() => {
-    const d = config?.docs_dir ?? '';
-    setEnabled(!!d.trim());
-    if (d.trim()) setDir(d);
-  }, [config]);
-
-  const save = async () => {
-    setSaving(true);
-    setMsg('');
-    try {
-      // 启用 → 存路径；关闭 → 存空（保留文件，只停写）
-      const next = { ...(config as P4GitConfig), docs_dir: enabled ? dir.trim() : '' };
-      await saveConfig(next);
-      setMsg(enabled ? '已启用，骨架已就绪' : '已关闭（文件保留，仅停止写入）');
-      setTimeout(() => setMsg(''), 2500);
-    } catch (e: any) {
-      setMsg('保存失败: ' + (e.message ?? ''));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="px-5 pt-4 pb-3 border-b border-[#2d2d2d] shrink-0">
-        <h2 className="text-[14px] font-semibold text-[#eee]">知识库</h2>
-        <p className="text-[11px] text-[#777] mt-1 leading-relaxed">
-          让 agent 把产出文档写入统一的 Obsidian 知识库。关闭只停止写入，不删除已有文件。
-        </p>
-      </div>
-      <div className="flex-1 p-5 overflow-y-auto space-y-4">
-        {/* 开关 */}
-        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-          <button
-            onClick={() => setEnabled((v) => !v)}
-            className={`relative w-9 h-5 rounded-full transition-colors ${enabled ? 'bg-[#007acc]' : 'bg-[#555]'}`}
-          >
-            <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
-          </button>
-          <span className="text-[13px] text-[#ddd]">启用知识库</span>
-        </label>
-
-        {/* 路径 */}
-        <div className={enabled ? '' : 'opacity-40 pointer-events-none'}>
-          <label className="block text-[11px] text-[#999] mb-1.5">知识库路径</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={dir}
-              onChange={(e) => setDir(e.target.value)}
-              placeholder={DEFAULT_DOCS_DIR}
-              className="flex-1 bg-[#1a1a1a] border border-[#3e3e42] rounded px-2.5 py-1.5 text-[12px] text-[#ccc] outline-none focus:border-[#007acc]"
-            />
-            <button
-              onClick={() => api.openDocsDir()}
-              className="px-3 py-1.5 text-[12px] rounded bg-[#2a2d2e] hover:bg-[#3c3c3c] text-[#ccc] border border-[#444]"
-            >
-              打开
-            </button>
-          </div>
-          <p className="text-[10px] text-[#666] mt-2 leading-relaxed">
-            启用后工具会在此路径建好知识库骨架（技术方案 / Bug / agent上下文 / 知识库 / MOC），
-            并在各工作区的 CLAUDE.md 里注入"文档写到这里"的规则。用 Obsidian 打开此目录即可浏览。
-          </p>
-        </div>
-
-        {msg && <div className="text-[11px] text-[#4ec9b0]">{msg}</div>}
-      </div>
-      <div className="flex justify-end px-5 py-3 border-t border-[#3e3e42] shrink-0">
-        <button
-          onClick={save}
-          disabled={saving}
-          className="px-4 py-1.5 text-[12px] rounded bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white font-semibold"
-        >
-          {saving ? '保存中' : '保存'}
-        </button>
       </div>
     </div>
   );

@@ -100,7 +100,6 @@ export interface P4GitConfig {
   p4_port: string;
   p4_user: string;
   workspaces_dir: string;
-  docs_dir?: string;
   streams: { name: string; client: string; root: string }[];
 }
 
@@ -233,8 +232,6 @@ export const api = {
     post<{ ok: boolean; results: SyncStreamResult[] }>('/sync-config', stream ? { stream } : {}),
   openTemplatesDir: () =>
     post<{ ok: boolean }>('/open-templates-dir', {}),
-  openDocsDir: () =>
-    post<{ ok: boolean }>('/open-docs-dir', {}),
 
   subscribeEvents: (
     onEvent: (e: AppEvent) => void,

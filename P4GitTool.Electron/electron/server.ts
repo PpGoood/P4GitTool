@@ -14,7 +14,6 @@ import { createDiscardRouter } from './routes/discard';
 import { createRollbackRouter } from './routes/rollback';
 import { createTemplatesRouter } from './routes/templates';
 import { ensureTemplates, writeSyncBat } from './services/templates';
-import { ensureDocsSkeleton } from './services/docs';
 
 async function findAvailablePort(preferred = 3001): Promise<number> {
   // 先尝试固定端口 3001，失败再随机
@@ -109,11 +108,6 @@ export async function startServer(defaultRootDir: string): Promise<number> {
   ensureTemplates(currentRootDir);
   writeSyncBat(currentRootDir, port);
 
-  // 知识库启用时（docs_dir 非空），确保骨架存在
-  const startupCfg = loadConfig();
-  if (startupCfg.docs_dir && startupCfg.docs_dir.trim()) {
-    ensureDocsSkeleton(startupCfg.docs_dir);
-  }
 
   // 装配 Express
   const app = express();
@@ -159,10 +153,6 @@ export async function startServer(defaultRootDir: string): Promise<number> {
       }
       setConfigPath(newConfigPath);
       currentRootDir = newRootDir;
-    }
-    // 知识库启用时确保骨架存在（用户刚在面板里填了 docs_dir 也能立即建好）
-    if (newCfg.docs_dir && newCfg.docs_dir.trim()) {
-      ensureDocsSkeleton(newCfg.docs_dir);
     }
     await refreshWatcher(currentRootDir);
   };

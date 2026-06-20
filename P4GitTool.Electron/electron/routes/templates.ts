@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { spawn } from 'child_process';
 import * as tpl from '../services/templates';
-import { docsDir, ensureDocsSkeleton } from '../services/docs';
 
 export function createTemplatesRouter(getRootDir: () => string): Router {
   const router = Router();
@@ -11,20 +10,6 @@ export function createTemplatesRouter(getRootDir: () => string): Router {
     try {
       const dir = tpl.templatesDir(getRootDir());
       tpl.ensureTemplates(getRootDir());
-      const proc = spawn('explorer', [dir], { detached: true, stdio: 'ignore' });
-      proc.unref();
-      res.json({ ok: true });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // 在资源管理器打开知识库目录（启用时）
-  router.post('/open-docs-dir', (_req, res) => {
-    try {
-      const dir = docsDir();
-      if (!dir) { res.status(400).json({ error: '知识库未启用' }); return; }
-      ensureDocsSkeleton(dir);
       const proc = spawn('explorer', [dir], { detached: true, stdio: 'ignore' });
       proc.unref();
       res.json({ ok: true });
