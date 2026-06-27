@@ -32,10 +32,10 @@ export function createOperationsRouter(getRootDir: () => string): Router {
   });
 
   router.post('/snapshot', async (req, res) => {
-    const { stream, message } = req.body ?? {};
+    const { stream, message, files } = req.body ?? {};
     if (!stream || !message) { res.status(400).json({ error: 'stream and message required' }); return; }
     try {
-      const ok = await ops.commitSnapshot(getRootDir(), stream, message, makeLogFn());
+      const ok = await ops.commitSnapshot(getRootDir(), stream, message, files, makeLogFn());
       emitDone('snapshot', stream, ok);
       res.json({ ok });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -98,6 +98,16 @@ export function createOperationsRouter(getRootDir: () => string): Router {
       ['/c', 'start', `P4Git Claude - ${stream}`, 'cmd', '/k', 'claude', '-r'],
       { cwd: repo, detached: true, stdio: 'ignore', windowsHide: false }
     );
+    proc.unref();
+    res.json({ ok: true });
+  });
+
+  // 用 VSCode 打开整个 git 工作区（与 open-claude 指向同一目录）
+  router.post('/open-project-in-vscode', async (req, res) => {
+    const { stream } = req.body ?? {};
+    if (!stream) { res.status(400).json({ error: 'stream required' }); return; }
+    const repo = repoPath(getRootDir(), stream);
+    const proc = spawn('code', [repo], { detached: true, stdio: 'ignore', shell: true });
     proc.unref();
     res.json({ ok: true });
   });

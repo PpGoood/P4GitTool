@@ -9,10 +9,15 @@ import { LogFn } from './internal';
 // -------------------------------------------------------
 
 /**
- * 用户手动触发的快照：git add -A + git commit -m "<message>"
+ * 用户手动触发的快照。
+ * - files 为 undefined/空 → git add -A（全量提交，向后兼容）
+ * - files 非空 → 仅 git add -- <files>（部分提交），其余改动留在工作区
+ * 用暂存区（git diff --cached）判断是否有可提交内容，而非整体 porcelain，
+ * 因为部分提交时工作区仍有未暂存改动。
  */
 export async function commitSnapshot(
-  rootDir: string, stream: string, message: string, log: LogFn
+  rootDir: string, stream: string, message: string,
+  files: string[] | undefined, log: LogFn
 ): Promise<boolean> {
   const cfg = loadConfig();
   const sc = getStream(cfg, stream);
@@ -26,9 +31,17 @@ export async function commitSnapshot(
       log('[ERROR] 工作区存在合并冲突，请先解决'); return false;
     }
 
-    await run('git', ['add', '-A'], repo, true);
-    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
-    if (!st.trim()) {
+    if (files && files.length > 0) {
+      // 部分提交：先清空暂存区，再只暂存纳入文件，避免残留之前的暂存内容
+      await run('git', ['reset'], repo, true);
+      await run('git', ['add', '--', ...files], repo, true);
+    } else {
+      await run('git', ['add', '-A'], repo, true);
+    }
+
+    // 用暂存区判断是否有可提交内容
+    const { stdout: staged } = await run('git', ['diff', '--cached', '--name-only'], repo, true);
+    if (!staged.trim()) {
       log('[INFO] 无改动可快照'); return false;
     }
 

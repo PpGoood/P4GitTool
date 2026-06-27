@@ -117,3 +117,94 @@ describe('listSnapshots (integration)', () => {
     expect(last.message).toBe('commit 2');
   });
 });
+
+describe('commitSnapshot 部分提交 (integration)', () => {
+  let rootDir: string;
+  let repo: string;
+
+  beforeEach(async () => {
+    rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'p4git-commit-'));
+    repo = path.join(rootDir, 'ProjectX_dev_git');
+    fs.mkdirSync(path.join(repo, 'Source'), { recursive: true });
+    await run('git', ['init', '-b', 'dev'], repo, true);
+    await run('git', ['config', 'user.email', 'test@test'], repo, true);
+    await run('git', ['config', 'user.name', 'Test'], repo, true);
+    await run('git', ['config', 'core.autocrlf', 'false'], repo, true);
+    fs.writeFileSync(path.join(repo, 'Source', 'base.cpp'), 'int base = 0;\n');
+    await run('git', ['add', '.'], repo, true);
+    await run('git', ['commit', '-m', 'init'], repo, true);
+  });
+
+  afterEach(() => fs.rmSync(rootDir, { recursive: true, force: true }));
+
+  // 测试桩：commitSnapshot 需要 config 已加载（loadConfig 读 configPath）。
+  // setConfigPath 指向一个最小 config，使 getStream('dev') 命中。
+  async function withConfig() {
+    const { setConfigPath } = await import('./config');
+    const cfgPath = path.join(rootDir, 'config.yaml');
+    fs.writeFileSync(
+      cfgPath,
+      `p4_port: ""\np4_user: ""\nworkspaces_dir: "${rootDir.replace(/\\/g, '/')}"\nstreams:\n  - name: dev\n    client: c\n    root: "${rootDir.replace(/\\/g, '/')}"\n`
+    );
+    setConfigPath(cfgPath);
+  }
+
+  function changedNames(out: string) {
+    return out.split('\n').map(l => l.trim()).filter(Boolean);
+  }
+
+  it('files 指定子集时只提交该子集，其余改动留在工作区', async () => {
+    await withConfig();
+    fs.writeFileSync(path.join(repo, 'Source', 'a.cpp'), 'int a = 1;\n');
+    fs.writeFileSync(path.join(repo, 'Source', 'b.cpp'), 'int b = 2;\n');
+
+    const { commitSnapshot } = await import('./snapshot');
+    const ok = await commitSnapshot(rootDir, 'dev', 'only a', ['Source/a.cpp'], () => {});
+    expect(ok).toBe(true);
+
+    const { stdout: head } = await run('git', ['show', '--name-only', '--format=', 'HEAD'], repo, true);
+    expect(changedNames(head)).toContain('Source/a.cpp');
+    expect(changedNames(head)).not.toContain('Source/b.cpp');
+
+    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
+    expect(st).toContain('b.cpp');
+  });
+
+  it('files 为 undefined 时全量提交', async () => {
+    await withConfig();
+    fs.writeFileSync(path.join(repo, 'Source', 'a.cpp'), 'int a = 1;\n');
+    fs.writeFileSync(path.join(repo, 'Source', 'b.cpp'), 'int b = 2;\n');
+
+    const { commitSnapshot } = await import('./snapshot');
+    const ok = await commitSnapshot(rootDir, 'dev', 'all', undefined, () => {});
+    expect(ok).toBe(true);
+
+    const { stdout: st } = await run('git', ['status', '--porcelain'], repo, true);
+    expect(st.trim()).toBe('');
+  });
+
+  it('files 指定的文件无实际改动时返回 false', async () => {
+    await withConfig();
+    const { commitSnapshot } = await import('./snapshot');
+    const ok = await commitSnapshot(rootDir, 'dev', 'noop', ['Source/base.cpp'], () => {});
+    expect(ok).toBe(false);
+  });
+
+  it('部分提交删除文件', async () => {
+    await withConfig();
+    fs.rmSync(path.join(repo, 'Source', 'base.cpp'));
+    fs.writeFileSync(path.join(repo, 'Source', 'a.cpp'), 'int a = 1;\n');
+
+    const { commitSnapshot } = await import('./snapshot');
+    const ok = await commitSnapshot(rootDir, 'dev', 'del base', ['Source/base.cpp'], () => {});
+    expect(ok).toBe(true);
+
+    const { code } = await run('git', ['cat-file', '-e', 'HEAD:Source/base.cpp'], repo, true);
+    expect(code).not.toBe(0);
+
+    // a.cpp 未提交：仍在磁盘上，且不在 HEAD 里
+    expect(fs.existsSync(path.join(repo, 'Source', 'a.cpp'))).toBe(true);
+    const { code: aInHead } = await run('git', ['cat-file', '-e', 'HEAD:Source/a.cpp'], repo, true);
+    expect(aInHead).not.toBe(0);
+  });
+});
