@@ -10,6 +10,9 @@ interface ContextMenu {
   x: number; y: number; filepath: string;
 }
 
+// 稳定的空数组引用：避免 selector 每次返回新 [] 触发 Zustand 无限重渲染
+const EMPTY_EXCLUDED: string[] = [];
+
 function statusClass(s: string) {
   if (s.startsWith('M')) return 'text-[#cca700]';
   if (s.startsWith('A') || s === '?') return 'text-[#4ec9b0]';
@@ -77,7 +80,7 @@ export const FileList: React.FC = () => {
   const viewMode = useAppStore((s) => s.viewMode);
 
   const toggleExclude = useAppStore((s) => s.toggleExclude);
-  const excludedList = useAppStore((s) => s.excludedByStream[s.currentStream] ?? []);
+  const excludedList = useAppStore((s) => s.excludedByStream[s.currentStream] ?? EMPTY_EXCLUDED);
 
   const viewingFiles = useAppStore((s) => s.viewingFiles);
   const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
