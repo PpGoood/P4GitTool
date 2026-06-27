@@ -23,30 +23,42 @@ function statusLetter(s: string): string {
   return c && c !== '?' ? c : 'A';
 }
 
-function FileItem({ f, active, onClick, onContextMenu }: {
+function FileItem({ f, active, excluded, onClick, onToggle, onContextMenu }: {
   f: FileChange;
   active: boolean;
+  excluded: boolean;
   onClick: () => void;
+  onToggle: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const parts = f.path.split('/');
   const name = parts[parts.length - 1];
   const dir = parts.slice(0, -1).join('/');
   return (
-    <button
+    <div
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`w-full text-left px-3 py-1.5 flex items-center gap-2 border-b border-[#2a2a2a]
-        ${active ? 'bg-[#2a2d2e] border-l-2 border-l-[#007acc]' : 'hover:bg-[#2a2a2a]'}`}
+      className={`group w-full text-left pr-3 py-1.5 flex items-center gap-2 border-b border-[#2a2a2a] cursor-pointer
+        border-l-[3px] ${excluded ? 'border-l-transparent bg-[#1d1d1d]' : 'border-l-[#4ec9b0]'}
+        ${active ? 'bg-[#2a2d2e]' : 'hover:bg-[#2a2a2a]'}`}
     >
-      <span className={`text-[9px] font-bold w-3 ${statusClass(f.status)}`}>
+      {/* checkbox：仅 hover 行时显示；点击切换纳入/排除，stopPropagation 防触发看 diff */}
+      <span
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        title={excluded ? '点击纳入本次快照' : '点击排除出本次快照'}
+        className={`ml-2 w-[13px] h-[13px] flex-shrink-0 rounded-[3px] border flex items-center justify-center text-[9px] leading-none invisible group-hover:visible
+          ${excluded ? 'border-[#888] text-transparent' : 'bg-[#007acc] border-[#007acc] text-white'}`}
+      >
+        {excluded ? '' : '✓'}
+      </span>
+      <span className={`text-[9px] font-bold w-3 ${statusClass(f.status)} ${excluded ? 'opacity-40' : ''}`}>
         {statusLetter(f.status)}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-[11px] text-[#ccc] truncate">{name}</div>
+        <div className={`text-[11px] truncate ${excluded ? 'text-[#666] line-through' : 'text-[#ccc]'}`}>{name}</div>
         {dir && <div className="text-[10px] text-[#666] truncate">{dir}/</div>}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -63,6 +75,9 @@ export const FileList: React.FC = () => {
   const loadingOp = useAppStore((s) => s.loadingOp);
   const toggleLog = useAppStore((s) => s.toggleLog);
   const viewMode = useAppStore((s) => s.viewMode);
+
+  const toggleExclude = useAppStore((s) => s.toggleExclude);
+  const excludedList = useAppStore((s) => s.excludedByStream[s.currentStream] ?? []);
 
   const viewingFiles = useAppStore((s) => s.viewingFiles);
   const viewingSelectedFile = useAppStore((s) => s.viewingSelectedFile);
@@ -110,6 +125,7 @@ export const FileList: React.FC = () => {
   // 当前显示的文件列表和选中文件
   const displayFiles = isViewing ? viewingFiles : ws.changes;
   const selectedFile = isViewing ? viewingSelectedFile : ws.selectedFile;
+  const includedCount = ws.changes.filter((f) => !excludedList.includes(f.path)).length;
 
   return (
     <div className="w-[220px] bg-[#252526] border-r border-[#1a1a1a] flex flex-col flex-shrink-0">
@@ -200,7 +216,9 @@ export const FileList: React.FC = () => {
             key={f.path}
             f={f}
             active={selectedFile === f.path}
+            excluded={!isViewing && excludedList.includes(f.path)}
             onClick={() => isViewing ? viewNodeSelectFile(f.path) : selectFile(currentStream, f.path)}
+            onToggle={() => currentStream && toggleExclude(currentStream, f.path)}
             onContextMenu={(e) => {
               e.preventDefault();
               setMenu({ x: e.clientX, y: e.clientY, filepath: f.path });
@@ -214,10 +232,10 @@ export const FileList: React.FC = () => {
         <div className="p-2.5 border-t border-[#333] flex flex-col gap-1.5">
           <button
             onClick={() => setSnapshotOpen(true)}
-            disabled={isLoading || ws.changes.length === 0}
+            disabled={isLoading || includedCount === 0}
             className="bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold py-1.5 rounded"
           >
-            ⊙ 提交快照
+            ⊙ 提交快照{ws.changes.length > 0 ? ` (${includedCount})` : ''}
           </button>
           <button
             onClick={handleSubmitPrepare}

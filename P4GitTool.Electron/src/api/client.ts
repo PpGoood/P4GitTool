@@ -188,12 +188,14 @@ export const api = {
     post<{ ok: boolean; conflicts?: string[] }>('/align-git', { stream }),
   alignGitContinue: (stream: string, resolution: 'ours' | 'theirs' | 'manual') =>
     post<{ ok: boolean; resolvedFiles?: string[] }>('/align-git-continue', { stream, resolution }),
-  snapshot: (stream: string, message: string) =>
-    post<{ ok: boolean }>('/snapshot', { stream, message }),
+  snapshot: (stream: string, message: string, files?: string[]) =>
+    post<{ ok: boolean }>('/snapshot', { stream, message, files }),
   submitPrepare: (stream: string) =>
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
   openInVscode: (stream: string, filepath: string) =>
     post<{ ok: boolean }>('/open-in-vscode', { stream, filepath }),
+  openProjectInVscode: (stream: string) =>
+    post<{ ok: boolean }>('/open-project-in-vscode', { stream }),
   openClaude: (stream: string) =>
     post<{ ok: boolean }>('/open-claude', { stream }),
 

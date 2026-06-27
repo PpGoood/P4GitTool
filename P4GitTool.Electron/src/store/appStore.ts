@@ -39,6 +39,9 @@ interface AppState {
   currentStream: string;
   workspaces: Record<string, WorkspaceState>;
 
+  // 快照勾选：按 stream 记录被排除（取消勾选）的文件路径。临时态，不落盘。
+  excludedByStream: Record<string, string[]>;
+
   // 日志
   logs: string[];
 
@@ -62,6 +65,11 @@ interface AppState {
   toggleLog: () => void;
   appendLog: (line: string) => void;
   clearLogs: () => void;
+
+  // 快照勾选
+  toggleExclude: (stream: string, filepath: string) => void;
+  isExcluded: (stream: string, filepath: string) => boolean;
+  clearExcluded: (stream: string) => void;
 
   // 配置
   loadConfig: () => Promise<void>;
@@ -103,6 +111,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   config: null,
   currentStream: '',
   workspaces: {},
+  excludedByStream: {},
   logs: [],
   timelineCollapsed: false,
   logCollapsed: true,
@@ -126,6 +135,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       viewingSelectedFile: null,
       viewMode: VIEW_NORMAL,
     });
+    get().clearExcluded(stream);
     get().refreshWorkspace(stream);
   },
 
@@ -145,6 +155,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       [stream]: { ...(s.workspaces[stream] ?? EMPTY_WS), ...patch },
     },
   })),
+
+  toggleExclude: (stream, filepath) => set((s) => {
+    const cur = s.excludedByStream[stream] ?? [];
+    const next = cur.includes(filepath)
+      ? cur.filter((p) => p !== filepath)
+      : [...cur, filepath];
+    return { excludedByStream: { ...s.excludedByStream, [stream]: next } };
+  }),
+
+  isExcluded: (stream, filepath) =>
+    (get().excludedByStream[stream] ?? []).includes(filepath),
+
+  clearExcluded: (stream) => set((s) => {
+    if (!s.excludedByStream[stream]?.length) return {};
+    const next = { ...s.excludedByStream };
+    delete next[stream];
+    return { excludedByStream: next };
+  }),
 
   loadConfig: async () => {
     // 重试最多 5 次，每次间隔 600ms，等待 Express 服务器就绪
@@ -318,8 +346,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!s) return false;
     set({ isLoading: true, loadingOp: 'snapshot' });
     try {
-      const { ok } = await api.snapshot(s, message);
-      if (ok) await get().refreshWorkspace(s);
+      const ws = get().workspaces[s];
+      const excluded = get().excludedByStream[s] ?? [];
+      const allPaths = (ws?.changes ?? []).map((f) => f.path);
+      const included = allPaths.filter((p) => !excluded.includes(p));
+      // 无排除时传 undefined → 后端走 git add -A（全量）
+      const files = excluded.length > 0 ? included : undefined;
+      const { ok } = await api.snapshot(s, message, files);
+      if (ok) {
+        get().clearExcluded(s);
+        await get().refreshWorkspace(s);
+      }
       return ok;
     } finally {
       set({ isLoading: false, loadingOp: null });
