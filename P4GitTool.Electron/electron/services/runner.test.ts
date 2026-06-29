@@ -44,6 +44,27 @@ describe('run', () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toBe('ok');
   });
+
+  it('子进程看不到 PWD/OLDPWD（防止 p4 用它解析相对路径覆盖 cwd）', async () => {
+    // 模拟被 Git Bash/Node 启动时继承的 PWD/OLDPWD，验证 getEnv 把它删了
+    process.env.PWD = '/some/garbage/PWD';
+    process.env.OLDPWD = '/some/garbage/OLDPWD';
+    try {
+      const script = path.join(tmpDir, 'pwd-check.js');
+      fs.writeFileSync(
+        script,
+        `process.stdout.write(JSON.stringify({ PWD: process.env.PWD, OLDPWD: process.env.OLDPWD }));`
+      );
+      const result = await run('node', [script]);
+      expect(result.code).toBe(0);
+      const got = JSON.parse(result.stdout);
+      expect(got.PWD).toBeUndefined();
+      expect(got.OLDPWD).toBeUndefined();
+    } finally {
+      delete process.env.PWD;
+      delete process.env.OLDPWD;
+    }
+  });
 });
 
 describe('redactSensitive', () => {

@@ -7,7 +7,11 @@ export interface RunResult {
   stderr: string;
 }
 
-// 打包后 Electron 进程的 PATH 可能不包含系统目录，需要手动补全
+// 打包后 Electron 进程的 PATH 可能不包含系统目录，需要手动补全。
+// 同时删除 PWD/OLDPWD：这是 Unix 风格的路径环境变量，
+// p4 在 Windows 上会优先用它解析相对路径，导致 spawn 的 cwd 被覆盖
+// → sync 报 "Path ... is not under client's root" 瞬间失败。
+// (现象：工具点 P4 Sync 后遮罩一闪而过、没拉到文件、日志卡在"正在同步")
 function getEnv() {
   const systemRoot = process.env.SystemRoot ?? 'C:\\Windows';
   const extraPaths = [
@@ -17,10 +21,13 @@ function getEnv() {
   ].join(path.delimiter);
 
   const currentPath = process.env.PATH ?? '';
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     PATH: currentPath ? `${currentPath}${path.delimiter}${extraPaths}` : extraPaths,
   };
+  delete env.PWD;
+  delete env.OLDPWD;
+  return env;
 }
 
 /**
