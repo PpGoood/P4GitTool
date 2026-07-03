@@ -194,6 +194,8 @@ export const api = {
     post<SubmitPrepareResult>('/submit-prepare', { stream }),
   openInVscode: (stream: string, filepath: string) =>
     post<{ ok: boolean }>('/open-in-vscode', { stream, filepath }),
+  openInExplorer: (stream: string, filepath: string) =>
+    post<{ ok: boolean }>('/open-in-explorer', { stream, filepath }),
   openProjectInVscode: (stream: string) =>
     post<{ ok: boolean }>('/open-project-in-vscode', { stream }),
   openClaude: (stream: string) =>

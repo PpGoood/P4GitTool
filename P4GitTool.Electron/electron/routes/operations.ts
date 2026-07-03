@@ -85,6 +85,21 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     res.json({ ok: true });
   });
 
+  // 在资源管理器中打开文件所在目录并选中该文件
+  router.post('/open-in-explorer', async (req, res) => {
+    const { stream, filepath } = req.body ?? {};
+    if (!stream || !filepath) { res.status(400).json({ error: 'stream and filepath required' }); return; }
+    const cfg = loadConfig();
+    const sc = getStream(cfg, stream);
+    if (!sc) { res.status(400).json({ error: `stream ${stream} not found` }); return; }
+    // explorer /select 需要 Windows 反斜杠路径
+    const fullPath = `${sc.root}/ProjectX/${filepath}`.replace(/\//g, '\\');
+    // 不加 shell:true：filepath 可能含空格/特殊字符，数组参数直传更安全
+    const proc = spawn('explorer', [`/select,${fullPath}`], { detached: true, stdio: 'ignore' });
+    proc.unref();
+    res.json({ ok: true });
+  });
+
   // 在新终端窗口里、对应 git 工作区下打开 claude -r（恢复历史对话，交互式选择）
   router.post('/open-claude', async (req, res) => {
     const { stream } = req.body ?? {};

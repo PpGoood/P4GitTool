@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { loadConfig, repoPath, getStream } from './config';
 import * as git from './git';
 import * as p4 from './p4';
@@ -11,7 +13,9 @@ import { LogFn } from './internal';
 // -------------------------------------------------------
 
 /**
- * 还原单个文件到 mirror/p4 的版本。
+ * 还原单个文件到上个快照（HEAD）的状态。
+ * - 文件在 HEAD 中存在 → git checkout HEAD -- <file>，恢复内容且不留在暂存区
+ * - 文件不在 HEAD（新增/未跟踪）→ 上个快照时不存在，还原 = 删除该文件
  */
 export async function discardFile(
   rootDir: string, stream: string, filepath: string, log: LogFn
@@ -23,11 +27,24 @@ export async function discardFile(
   const queue = getQueue(repo);
 
   return queue.enqueue(async () => {
-    if (!await git.gitCheckoutFile(repo, 'mirror/p4', filepath)) {
-      log(`[ERROR] 还原 ${filepath} 失败`); return false;
+    // 文件是否在 HEAD（上个快照）中被跟踪
+    const { code: tracked } = await run(
+      'git', ['cat-file', '-e', `HEAD:${filepath}`], repo, true
+    );
+
+    if (tracked === 0) {
+      // 在 HEAD 中：checkout 回上个快照的内容（同时更新工作区和暂存区，不留 staged）
+      const { code } = await run('git', ['checkout', 'HEAD', '--', filepath], repo, true);
+      if (code !== 0) { log(`[ERROR] 还原 ${filepath} 失败`); return false; }
+    } else {
+      // 不在 HEAD（新增文件）：还原 = 删除。先从暂存区移除（若已 add），再删磁盘文件
+      await run('git', ['rm', '-f', '--quiet', '--', filepath], repo, true);
+      const abs = path.join(repo, filepath);
+      if (fs.existsSync(abs)) {
+        try { fs.rmSync(abs); } catch { /* 忽略 */ }
+      }
     }
-    await p4.p4SyncKeep(cfg, stream, [filepath]);
-    log(`[OK] ${filepath} 已还原到 P4 版本`);
+    log(`[OK] ${filepath} 已还原到上个快照`);
     return true;
   });
 }

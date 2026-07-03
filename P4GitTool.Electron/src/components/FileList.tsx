@@ -285,6 +285,15 @@ export const FileList: React.FC = () => {
             >
               在 VSCode 中打开
             </button>
+            <button
+              onClick={() => {
+                if (currentStream) api.openInExplorer(currentStream, menu.filepath);
+                setMenu(null);
+              }}
+              className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
+            >
+              在资源管理器中打开
+            </button>
           </div>
         </>
       )}
