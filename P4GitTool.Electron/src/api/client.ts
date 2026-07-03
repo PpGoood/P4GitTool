@@ -208,6 +208,12 @@ export const api = {
   discardLine: (stream: string, path: string, hunkIndex: number, lineIndex: number) =>
     post<{ ok: boolean }>('/discard-line', { stream, path, hunkIndex, lineIndex }),
 
+  // 跨工作区同步
+  syncToStream: (sourceStream: string, hash: string, parentHash: string, targetStream: string) =>
+    post<{ ok: boolean; applied: number; conflicts: string[] }>(
+      '/sync-to-stream', { sourceStream, hash, parentHash, targetStream }
+    ),
+
   // 历史节点查看（纯读，不改变工作区）
   getNodeFiles: (stream: string, hash: string, parentHash: string) =>
     get<{ files: FileChange[] }>(

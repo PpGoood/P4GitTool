@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, Copy, Check, Filter } from 'lucide-react';
 import { useAppStore, useCurrentWorkspace } from '../store/appStore';
-import { SnapshotEntry } from '../api/client';
+import { SnapshotEntry, api } from '../api/client';
 
 const COLORS: Record<SnapshotEntry['kind'], { border: string; bg: string; glow?: string; label: string; tagBg: string; tagText: string }> = {
   sync:           { border: '#007acc', bg: '#007acc33',                                label: 'P4 Sync',   tagBg: '#007acc22', tagText: '#007acc' },
@@ -40,6 +40,13 @@ export const Timeline: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filterManual, setFilterManual] = useState(false);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; node: SnapshotEntry } | null>(null);
+  const [syncTarget, setSyncTarget] = useState<SnapshotEntry | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const config = useAppStore((s) => s.config);
+  const currentStream = useAppStore((s) => s.currentStream);
+  const appendLog = useAppStore((s) => s.appendLog);
 
   const headHash = ws.status?.headHash ?? '';
   const isViewing = viewMode.kind === 'viewing';
@@ -121,6 +128,7 @@ export const Timeline: React.FC = () => {
                   <button
                     key={s.hash}
                     onClick={() => viewNode(s)}
+                    onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, node: s }); }}
                     title="点击查看此节点的改动"
                     className="flex flex-col items-center flex-shrink-0 w-[96px] relative z-10 group cursor-pointer"
                     style={{ paddingTop: `${NODE_TOP - 6}px` }}
@@ -210,6 +218,102 @@ export const Timeline: React.FC = () => {
                   </button>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 节点右键菜单 */}
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} />
+          <div
+            className="fixed z-50 bg-[#2d2d2d] border border-[#444] rounded py-1 shadow-xl min-w-[170px]"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          >
+            <button
+              onClick={() => { viewNode(ctxMenu.node); setCtxMenu(null); }}
+              className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
+            >
+              查看此节点改动
+            </button>
+            {(config?.streams.length ?? 0) > 1 && (
+              <>
+                <div className="h-px bg-[#444] my-1" />
+                <button
+                  onClick={() => { setSyncTarget(ctxMenu.node); setCtxMenu(null); }}
+                  className="block w-full text-left px-3 py-1.5 text-[11px] text-[#4ec9b0] font-bold hover:bg-[#3c3c3c]"
+                >
+                  ⇄ 同步到其他工作区
+                </button>
+              </>
+            )}
+            <div className="h-px bg-[#444] my-1" />
+            <button
+              onClick={(e) => { handleCopy(e, ctxMenu.node.hash); setCtxMenu(null); }}
+              className="block w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#3c3c3c]"
+            >
+              复制 Hash
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* 同步确认弹窗 */}
+      {syncTarget && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
+          <div className="bg-[#252526] border border-[#444] rounded-lg w-[380px] p-5">
+            <h3 className="text-[14px] font-bold text-white mb-2">⇄ 同步快照到其他工作区</h3>
+            <p className="text-[11px] text-[#888] mb-3">将此快照的改动以 patch 形式应用到目标工作区（不影响源工作区）</p>
+            <div className="bg-[#1e1e1e] border border-[#333] rounded p-2.5 mb-3 text-[11px]">
+              <div className="flex justify-between mb-1"><span className="text-[#888]">源快照</span><span className="text-[#ccc]">{syncTarget.message.slice(0, 30)}</span></div>
+              <div className="flex justify-between mb-1"><span className="text-[#888]">源 stream</span><span className="text-[#ccc]">{currentStream}</span></div>
+              <div className="flex justify-between"><span className="text-[#888]">改动文件数</span><span className="text-[#ccc]">{syncTarget.fileCount} 个文件</span></div>
+            </div>
+            <label className="text-[11px] text-[#888] block mb-1">目标工作区</label>
+            <select
+              id="sync-target-select"
+              className="w-full bg-[#1e1e1e] border border-[#444] text-[#ccc] p-2 rounded text-[12px] mb-4"
+              defaultValue={config?.streams.find(s => s.name !== currentStream)?.name ?? ''}
+            >
+              {config?.streams.filter(s => s.name !== currentStream).map(s => (
+                <option key={s.name} value={s.name}>{s.name}</option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setSyncTarget(null)}
+                className="px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#333] rounded"
+              >
+                取消
+              </button>
+              <button
+                disabled={syncing}
+                onClick={async () => {
+                  const select = document.getElementById('sync-target-select') as HTMLSelectElement;
+                  const target = select?.value;
+                  if (!target || !currentStream) return;
+                  setSyncing(true);
+                  try {
+                    const result = await api.syncToStream(
+                      currentStream, syncTarget.hash, syncTarget.parentHash, target
+                    );
+                    if (result.ok) {
+                      appendLog(`[OK] 已同步 ${result.applied} 个文件到 ${target}`);
+                    } else if (result.conflicts.length > 0) {
+                      appendLog(`[WARN] ${result.applied} 个文件已应用，${result.conflicts.length} 个冲突`);
+                    }
+                  } catch (e: any) {
+                    appendLog(`[ERROR] 同步失败: ${e.message}`);
+                  } finally {
+                    setSyncing(false);
+                    setSyncTarget(null);
+                  }
+                }}
+                className="px-3 py-1.5 bg-[#007acc] hover:bg-[#1c91ea] disabled:opacity-50 text-white text-[11px] font-bold rounded"
+              >
+                {syncing ? '同步中...' : '确认同步'}
+              </button>
             </div>
           </div>
         </div>

@@ -127,5 +127,21 @@ export function createOperationsRouter(getRootDir: () => string): Router {
     res.json({ ok: true });
   });
 
+  // 同步快照到其他工作区（跨 stream patch）
+  router.post('/sync-to-stream', async (req, res) => {
+    const { sourceStream, hash, parentHash, targetStream } = req.body ?? {};
+    if (!sourceStream || !hash || !targetStream) {
+      res.status(400).json({ error: 'sourceStream, hash, targetStream required' }); return;
+    }
+    try {
+      const result = await ops.syncToStream(
+        getRootDir(), sourceStream, hash, parentHash ?? '', targetStream, makeLogFn()
+      );
+      // 同步完成后通知目标 stream 刷新
+      eventBus.emit({ type: 'op-done', op: 'sync-to-stream', stream: targetStream, ok: result.ok });
+      res.json(result);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   return router;
 }

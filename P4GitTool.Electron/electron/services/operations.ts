@@ -24,3 +24,5 @@ export { getChangedFiles, getFileDiff } from './changes';
 export type { ChangedFile } from './changes';
 export { checkoutHistoryNode, returnToLatest, getNodeFiles, getNodeFileDiff } from './history';
 export { discardFile, discardHunk, discardLine } from './discard';
+export { syncToStream } from './sync';
+export type { SyncResult } from './sync';
