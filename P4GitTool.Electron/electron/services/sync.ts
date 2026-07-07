@@ -56,9 +56,12 @@ export async function syncToStream(
     const fileCount = patch.split('\n').filter(l => l.startsWith('diff --git')).length;
     log(`[INFO] 改动包含 ${fileCount} 个文件，正在应用到 ${targetStream}...`);
 
-    // 3. 在目标仓库应用 patch
+    // 3. 对齐目标仓库的暂存区，避免 "does not match index" 错误
+    // （release 工作区可能有残留的 staged 状态，reset 让 index 对齐 HEAD，不动工作区文件）
+    await run('git', ['reset'], tgtRepo, true);
+
+    // 4. 在目标仓库应用 patch
     // --3way: 冲突时使用三方合并标记而不是直接拒绝
-    // --allow-empty: patch 部分已存在时不报错
     const { code: applyCode, stderr: applyErr } = await run(
       'git', ['apply', '--3way', '--whitespace=nowarn'],
       tgtRepo, true, patch  // 通过 stdin 传入 patch 内容
