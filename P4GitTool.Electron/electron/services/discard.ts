@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { loadConfig, repoPath, getStream } from './config';
 import * as git from './git';
-import * as p4 from './p4';
 import { run } from './runner';
 import { parseUnifiedDiff, buildHunkReversePatch, buildLineReversePatch, DiffFile } from './diff';
 import { getQueue } from './queue';
@@ -52,7 +51,9 @@ export async function discardFile(
 async function findFileHunk(
   repo: string, filepath: string, hunkIndex: number
 ): Promise<{ file: DiffFile; hunkIndex: number } | null> {
-  const { stdout } = await run('git', ['diff', 'mirror/p4', '--', filepath], repo, true);
+  // 与前端 getFileDiff 一致：使用 HEAD（上个快照）作为 diff 基线。
+  // mirror/p4 是 P4 镜像，通常与 dev HEAD 不一致，用它会导致 hunkIndex 与前端错位。
+  const { stdout } = await run('git', ['diff', 'HEAD', '--', filepath], repo, true);
   const files = parseUnifiedDiff(stdout);
   if (!files.length || hunkIndex < 0 || hunkIndex >= files[0].hunks.length) return null;
   return { file: files[0], hunkIndex };
@@ -78,7 +79,6 @@ export async function discardHunk(
     if (!await git.applyReversePatch(repo, patch)) {
       log('[ERROR] git apply --reverse 失败'); return false;
     }
-    await p4.p4SyncKeep(cfg, stream, [filepath]);
     log(`[OK] ${filepath} 的 hunk #${hunkIndex} 已撤销`);
     return true;
   });
@@ -105,7 +105,6 @@ export async function discardLine(
     if (!await git.applyReversePatch(repo, patch)) {
       log('[ERROR] git apply --reverse 失败'); return false;
     }
-    await p4.p4SyncKeep(cfg, stream, [filepath]);
     log(`[OK] ${filepath} 的行改动已撤销`);
     return true;
   });
